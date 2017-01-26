@@ -1,17 +1,21 @@
-type id = int;;
+open Big_int;;
+module IdMap = Map.Make(Int32);;
+exception Id_not_found of Int32.t;;
+type id = int32;;
+type word = int32;;
 type id_result_type = id;;
 type id_result = id;;
 type id_memory_semantics = id;;
 type id_scope = id;;
 type id_ref = id;;
-type literal_integer = int;;
+type literal_integer = int32;;
 type literal_string = string;;
-type literal_context_dependent_number = int;;
+type literal_context_dependent_number = big_int;;
 type literal_ext_inst_integer = int;;
 type literal_spec_constant_op_integer = int;;
-type pair_literal_integer_id_ref = (literal_integer * id_ref);;
-type pair_id_ref_literal_integer = (id_ref * literal_integer);;
-type pair_id_ref_id_ref = (id_ref * id_ref);;
+type pair_literal_integer_id_ref = (int32 * id);;
+type pair_id_ref_literal_integer = (id * int32);;
+type pair_id_ref_id_ref = (id * id);;
 type image_operands =
   None
   | Bias
@@ -786,359 +790,1155 @@ type op =
     | `OpSubgroupBallotKHR of id_result_type * id_result * id_ref
     | `OpSubgroupFirstInvocationKHR of id_result_type * id_result * id_ref
   ];;
-let words_of_op op =
-  let list_of_list_opt ls_opt =
-    match ls_opt with | Some ls -> ls | None -> []
+let value_of_image_operands (v : image_operands) =
+  match v with
+  | None -> 0x0000l
+  | Bias -> 0x0001l
+  | Lod -> 0x0002l
+  | Grad -> 0x0004l
+  | ConstOffset -> 0x0008l
+  | Offset -> 0x0010l
+  | ConstOffsets -> 0x0020l
+  | Sample -> 0x0040l
+  | MinLod -> 0x0080l;;
+let value_of_f_p_fast_math_mode (v : f_p_fast_math_mode) =
+  match v with
+  | None -> 0x0000l
+  | NotNaN -> 0x0001l
+  | NotInf -> 0x0002l
+  | NSZ -> 0x0004l
+  | AllowRecip -> 0x0008l
+  | Fast -> 0x0010l;;
+let value_of_selection_control (v : selection_control) =
+  match v with
+  | None -> 0x0000l
+  | Flatten -> 0x0001l
+  | DontFlatten -> 0x0002l;;
+let value_of_loop_control (v : loop_control) =
+  match v with
+  | None -> 0x0000l
+  | Unroll -> 0x0001l
+  | DontUnroll -> 0x0002l
+  | DependencyInfinite -> 0x0004l
+  | DependencyLength -> 0x0008l;;
+let value_of_function_control (v : function_control) =
+  match v with
+  | None -> 0x0000l
+  | Inline -> 0x0001l
+  | DontInline -> 0x0002l
+  | Pure -> 0x0004l
+  | Const -> 0x0008l;;
+let value_of_memory_semantics (v : memory_semantics) =
+  match v with
+  | Relaxed -> 0x0000l
+  | None -> 0x0000l
+  | Acquire -> 0x0002l
+  | Release -> 0x0004l
+  | AcquireRelease -> 0x0008l
+  | SequentiallyConsistent -> 0x0010l
+  | UniformMemory -> 0x0040l
+  | SubgroupMemory -> 0x0080l
+  | WorkgroupMemory -> 0x0100l
+  | CrossWorkgroupMemory -> 0x0200l
+  | AtomicCounterMemory -> 0x0400l
+  | ImageMemory -> 0x0800l;;
+let value_of_memory_access (v : memory_access) =
+  match v with
+  | None -> 0x0000l
+  | Volatile -> 0x0001l
+  | Aligned -> 0x0002l
+  | Nontemporal -> 0x0004l;;
+let value_of_kernel_profiling_info (v : kernel_profiling_info) =
+  match v with | None -> 0x0000l | CmdExecTime -> 0x0001l;;
+let value_of_source_language (v : source_language) =
+  match v with
+  | Unknown -> 0l
+  | ESSL -> 1l
+  | GLSL -> 2l
+  | OpenCL_C -> 3l
+  | OpenCL_CPP -> 4l;;
+let value_of_execution_model (v : execution_model) =
+  match v with
+  | Vertex -> 0l
+  | TessellationControl -> 1l
+  | TessellationEvaluation -> 2l
+  | Geometry -> 3l
+  | Fragment -> 4l
+  | GLCompute -> 5l
+  | Kernel -> 6l;;
+let value_of_addressing_model (v : addressing_model) =
+  match v with | Logical -> 0l | Physical32 -> 1l | Physical64 -> 2l;;
+let value_of_memory_model (v : memory_model) =
+  match v with | Simple -> 0l | GLSL450 -> 1l | OpenCL -> 2l;;
+let value_of_execution_mode (v : execution_mode) =
+  match v with
+  | Invocations -> 0l
+  | SpacingEqual -> 1l
+  | SpacingFractionalEven -> 2l
+  | SpacingFractionalOdd -> 3l
+  | VertexOrderCw -> 4l
+  | VertexOrderCcw -> 5l
+  | PixelCenterInteger -> 6l
+  | OriginUpperLeft -> 7l
+  | OriginLowerLeft -> 8l
+  | EarlyFragmentTests -> 9l
+  | PointMode -> 10l
+  | Xfb -> 11l
+  | DepthReplacing -> 12l
+  | DepthGreater -> 14l
+  | DepthLess -> 15l
+  | DepthUnchanged -> 16l
+  | LocalSize -> 17l
+  | LocalSizeHint -> 18l
+  | InputPoints -> 19l
+  | InputLines -> 20l
+  | InputLinesAdjacency -> 21l
+  | Triangles -> 22l
+  | InputTrianglesAdjacency -> 23l
+  | Quads -> 24l
+  | Isolines -> 25l
+  | OutputVertices -> 26l
+  | OutputPoints -> 27l
+  | OutputLineStrip -> 28l
+  | OutputTriangleStrip -> 29l
+  | VecTypeHint -> 30l
+  | ContractionOff -> 31l
+  | Initializer -> 33l
+  | Finalizer -> 34l
+  | SubgroupSize -> 35l
+  | SubgroupsPerWorkgroup -> 36l;;
+let value_of_storage_class (v : storage_class) =
+  match v with
+  | UniformConstant -> 0l
+  | Input -> 1l
+  | Uniform -> 2l
+  | Output -> 3l
+  | Workgroup -> 4l
+  | CrossWorkgroup -> 5l
+  | Private -> 6l
+  | Function -> 7l
+  | Generic -> 8l
+  | PushConstant -> 9l
+  | AtomicCounter -> 10l
+  | Image -> 11l;;
+let value_of_dim (v : dim) =
+  match v with
+  | Dim1D -> 0l
+  | Dim2D -> 1l
+  | Dim3D -> 2l
+  | Cube -> 3l
+  | Rect -> 4l
+  | Buffer -> 5l
+  | SubpassData -> 6l;;
+let value_of_sampler_addressing_mode (v : sampler_addressing_mode) =
+  match v with
+  | None -> 0l
+  | ClampToEdge -> 1l
+  | Clamp -> 2l
+  | Repeat -> 3l
+  | RepeatMirrored -> 4l;;
+let value_of_sampler_filter_mode (v : sampler_filter_mode) =
+  match v with | Nearest -> 0l | Linear -> 1l;;
+let value_of_image_format (v : image_format) =
+  match v with
+  | Unknown -> 0l
+  | Rgba32f -> 1l
+  | Rgba16f -> 2l
+  | R32f -> 3l
+  | Rgba8 -> 4l
+  | Rgba8Snorm -> 5l
+  | Rg32f -> 6l
+  | Rg16f -> 7l
+  | R11fG11fB10f -> 8l
+  | R16f -> 9l
+  | Rgba16 -> 10l
+  | Rgb10A2 -> 11l
+  | Rg16 -> 12l
+  | Rg8 -> 13l
+  | R16 -> 14l
+  | R8 -> 15l
+  | Rgba16Snorm -> 16l
+  | Rg16Snorm -> 17l
+  | Rg8Snorm -> 18l
+  | R16Snorm -> 19l
+  | R8Snorm -> 20l
+  | Rgba32i -> 21l
+  | Rgba16i -> 22l
+  | Rgba8i -> 23l
+  | R32i -> 24l
+  | Rg32i -> 25l
+  | Rg16i -> 26l
+  | Rg8i -> 27l
+  | R16i -> 28l
+  | R8i -> 29l
+  | Rgba32ui -> 30l
+  | Rgba16ui -> 31l
+  | Rgba8ui -> 32l
+  | R32ui -> 33l
+  | Rgb10a2ui -> 34l
+  | Rg32ui -> 35l
+  | Rg16ui -> 36l
+  | Rg8ui -> 37l
+  | R16ui -> 38l
+  | R8ui -> 39l;;
+let value_of_image_channel_order (v : image_channel_order) =
+  match v with
+  | R -> 0l
+  | A -> 1l
+  | RG -> 2l
+  | RA -> 3l
+  | RGB -> 4l
+  | RGBA -> 5l
+  | BGRA -> 6l
+  | ARGB -> 7l
+  | Intensity -> 8l
+  | Luminance -> 9l
+  | Rx -> 10l
+  | RGx -> 11l
+  | RGBx -> 12l
+  | Depth -> 13l
+  | DepthStencil -> 14l
+  | SRGB -> 15l
+  | SRGBx -> 16l
+  | SRGBA -> 17l
+  | SBGRA -> 18l
+  | ABGR -> 19l;;
+let value_of_image_channel_data_type (v : image_channel_data_type) =
+  match v with
+  | SnormInt8 -> 0l
+  | SnormInt16 -> 1l
+  | UnormInt8 -> 2l
+  | UnormInt16 -> 3l
+  | UnormShort565 -> 4l
+  | UnormShort555 -> 5l
+  | UnormInt101010 -> 6l
+  | SignedInt8 -> 7l
+  | SignedInt16 -> 8l
+  | SignedInt32 -> 9l
+  | UnsignedInt8 -> 10l
+  | UnsignedInt16 -> 11l
+  | UnsignedInt32 -> 12l
+  | HalfFloat -> 13l
+  | Float -> 14l
+  | UnormInt24 -> 15l
+  | UnormInt101010_2 -> 16l;;
+let value_of_f_p_rounding_mode (v : f_p_rounding_mode) =
+  match v with | RTE -> 0l | RTZ -> 1l | RTP -> 2l | RTN -> 3l;;
+let value_of_linkage_type (v : linkage_type) =
+  match v with | Export -> 0l | Import -> 1l;;
+let value_of_access_qualifier (v : access_qualifier) =
+  match v with | ReadOnly -> 0l | WriteOnly -> 1l | ReadWrite -> 2l;;
+let value_of_function_parameter_attribute (v : function_parameter_attribute)
+                                          =
+  match v with
+  | Zext -> 0l
+  | Sext -> 1l
+  | ByVal -> 2l
+  | Sret -> 3l
+  | NoAlias -> 4l
+  | NoCapture -> 5l
+  | NoWrite -> 6l
+  | NoReadWrite -> 7l;;
+let value_of_decoration (v : decoration) =
+  match v with
+  | RelaxedPrecision -> 0l
+  | SpecId -> 1l
+  | Block -> 2l
+  | BufferBlock -> 3l
+  | RowMajor -> 4l
+  | ColMajor -> 5l
+  | ArrayStride -> 6l
+  | MatrixStride -> 7l
+  | GLSLShared -> 8l
+  | GLSLPacked -> 9l
+  | CPacked -> 10l
+  | BuiltIn -> 11l
+  | NoPerspective -> 13l
+  | Flat -> 14l
+  | Patch -> 15l
+  | Centroid -> 16l
+  | Sample -> 17l
+  | Invariant -> 18l
+  | Restrict -> 19l
+  | Aliased -> 20l
+  | Volatile -> 21l
+  | Constant -> 22l
+  | Coherent -> 23l
+  | NonWritable -> 24l
+  | NonReadable -> 25l
+  | Uniform -> 26l
+  | SaturatedConversion -> 28l
+  | Stream -> 29l
+  | Location -> 30l
+  | Component -> 31l
+  | Index -> 32l
+  | Binding -> 33l
+  | DescriptorSet -> 34l
+  | Offset -> 35l
+  | XfbBuffer -> 36l
+  | XfbStride -> 37l
+  | FuncParamAttr -> 38l
+  | FPRoundingMode -> 39l
+  | FPFastMathMode -> 40l
+  | LinkageAttributes -> 41l
+  | NoContraction -> 42l
+  | InputAttachmentIndex -> 43l
+  | Alignment -> 44l
+  | MaxByteOffset -> 45l;;
+let value_of_built_in (v : built_in) =
+  match v with
+  | Position -> 0l
+  | PointSize -> 1l
+  | ClipDistance -> 3l
+  | CullDistance -> 4l
+  | VertexId -> 5l
+  | InstanceId -> 6l
+  | PrimitiveId -> 7l
+  | InvocationId -> 8l
+  | Layer -> 9l
+  | ViewportIndex -> 10l
+  | TessLevelOuter -> 11l
+  | TessLevelInner -> 12l
+  | TessCoord -> 13l
+  | PatchVertices -> 14l
+  | FragCoord -> 15l
+  | PointCoord -> 16l
+  | FrontFacing -> 17l
+  | SampleId -> 18l
+  | SamplePosition -> 19l
+  | SampleMask -> 20l
+  | FragDepth -> 22l
+  | HelperInvocation -> 23l
+  | NumWorkgroups -> 24l
+  | WorkgroupSize -> 25l
+  | WorkgroupId -> 26l
+  | LocalInvocationId -> 27l
+  | GlobalInvocationId -> 28l
+  | LocalInvocationIndex -> 29l
+  | WorkDim -> 30l
+  | GlobalSize -> 31l
+  | EnqueuedWorkgroupSize -> 32l
+  | GlobalOffset -> 33l
+  | GlobalLinearId -> 34l
+  | SubgroupSize -> 36l
+  | SubgroupMaxSize -> 37l
+  | NumSubgroups -> 38l
+  | NumEnqueuedSubgroups -> 39l
+  | SubgroupId -> 40l
+  | SubgroupLocalInvocationId -> 41l
+  | VertexIndex -> 42l
+  | InstanceIndex -> 43l
+  | SubgroupEqMaskKHR -> 4416l
+  | SubgroupGeMaskKHR -> 4417l
+  | SubgroupGtMaskKHR -> 4418l
+  | SubgroupLeMaskKHR -> 4419l
+  | SubgroupLtMaskKHR -> 4420l
+  | BaseVertex -> 4424l
+  | BaseInstance -> 4425l
+  | DrawIndex -> 4426l;;
+let value_of_scope (v : scope) =
+  match v with
+  | CrossDevice -> 0l
+  | Device -> 1l
+  | Workgroup -> 2l
+  | Subgroup -> 3l
+  | Invocation -> 4l;;
+let value_of_group_operation (v : group_operation) =
+  match v with | Reduce -> 0l | InclusiveScan -> 1l | ExclusiveScan -> 2l;;
+let value_of_kernel_enqueue_flags (v : kernel_enqueue_flags) =
+  match v with | NoWait -> 0l | WaitKernel -> 1l | WaitWorkGroup -> 2l;;
+let value_of_capability (v : capability) =
+  match v with
+  | Matrix -> 0l
+  | Shader -> 1l
+  | Geometry -> 2l
+  | Tessellation -> 3l
+  | Addresses -> 4l
+  | Linkage -> 5l
+  | Kernel -> 6l
+  | Vector16 -> 7l
+  | Float16Buffer -> 8l
+  | Float16 -> 9l
+  | Float64 -> 10l
+  | Int64 -> 11l
+  | Int64Atomics -> 12l
+  | ImageBasic -> 13l
+  | ImageReadWrite -> 14l
+  | ImageMipmap -> 15l
+  | Pipes -> 17l
+  | Groups -> 18l
+  | DeviceEnqueue -> 19l
+  | LiteralSampler -> 20l
+  | AtomicStorage -> 21l
+  | Int16 -> 22l
+  | TessellationPointSize -> 23l
+  | GeometryPointSize -> 24l
+  | ImageGatherExtended -> 25l
+  | StorageImageMultisample -> 27l
+  | UniformBufferArrayDynamicIndexing -> 28l
+  | SampledImageArrayDynamicIndexing -> 29l
+  | StorageBufferArrayDynamicIndexing -> 30l
+  | StorageImageArrayDynamicIndexing -> 31l
+  | ClipDistance -> 32l
+  | CullDistance -> 33l
+  | ImageCubeArray -> 34l
+  | SampleRateShading -> 35l
+  | ImageRect -> 36l
+  | SampledRect -> 37l
+  | GenericPointer -> 38l
+  | Int8 -> 39l
+  | InputAttachment -> 40l
+  | SparseResidency -> 41l
+  | MinLod -> 42l
+  | Sampled1D -> 43l
+  | Image1D -> 44l
+  | SampledCubeArray -> 45l
+  | SampledBuffer -> 46l
+  | ImageBuffer -> 47l
+  | ImageMSArray -> 48l
+  | StorageImageExtendedFormats -> 49l
+  | ImageQuery -> 50l
+  | DerivativeControl -> 51l
+  | InterpolationFunction -> 52l
+  | TransformFeedback -> 53l
+  | GeometryStreams -> 54l
+  | StorageImageReadWithoutFormat -> 55l
+  | StorageImageWriteWithoutFormat -> 56l
+  | MultiViewport -> 57l
+  | SubgroupDispatch -> 58l
+  | NamedBarrier -> 59l
+  | PipeStorage -> 60l
+  | SubgroupBallotKHR -> 4423l
+  | DrawParameters -> 4427l;;
+let word_of_int (i : int32) = i;;
+let word_of_id (id : id) =
+  if id < 0l then failwith "spirv ids must be positive" else id;;
+let words_of_string (str : string) =
+  let len = String.length str in
+  let word_count = len / 4 in
+  let buffer = Array.make word_count 0l in
+  let add_char_to_word ch offset word =
+    Int32.logor word
+      (Int32.shift_left (Int32.of_int @@ (Char.code ch)) (offset * 4)) in
+  let rec add_char_to_buffer i =
+    if i = len
+    then ()
+    else
+      (buffer.(i / 4) <-
+         add_char_to_word (String.get str i) (i mod 4) buffer.(i / 4);
+       add_char_to_buffer (i + 1))
+  in (add_char_to_buffer 0; Array.to_list buffer);;
+let words_of_pair_literal_integer_id_ref (n, i) =
+  [ word_of_int n; word_of_id i ];;
+let words_of_pair_id_ref__literal_integer (i, n) =
+  [ word_of_id i; word_of_int n ];;
+let words_of_pair_id_ref_id_ref (a, b) = [ word_of_id a; word_of_id b ];;
+let words_of_op (size_map : int IdMap.t) (op : op) =
+  let list_of_option (opt : 'a option) =
+    match opt with | Some v -> [ v ] | None -> [] in
+  let apply_option (fn : 'a -> 'b) (opt : 'a option) =
+    match opt with | Some v -> Some (fn v) | None -> None in
+  let lookup_size (id : id) =
+    if IdMap.mem id size_map
+    then IdMap.find id size_map
+    else raise (Id_not_found id)
   in
     match op with
-    | `OpNop -> [ 0 ]
-    | `OpUndef (a, b) -> [ 1; a; b ]
-    | `OpSourceContinued a -> [ 2; a ]
+    | `OpNop -> [ 0x00000000l ]
+    | `OpUndef (a, b) -> [ 0x00000001l; word_of_id a; word_of_id b ]
+    | `OpSourceContinued a -> [ 0x00000002l ] @ (words_of_string a)
     | `OpSource (a, b, c, d) ->
-        ( @ ) ((( @ ) ([ 3; a; b ], (list_of_list_opt c))),
-          (list_of_list_opt d))
-    | `OpSourceExtension a -> [ 4; a ]
-    | `OpName (a, b) -> [ 5; a; b ]
-    | `OpMemberName (a, b, c) -> [ 6; a; b; c ]
-    | `OpString (a, b) -> [ 7; a; b ]
-    | `OpLine (a, b, c) -> [ 8; a; b; c ]
-    | `OpExtension a -> [ 10; a ]
-    | `OpExtInstImport (a, b) -> [ 11; a; b ]
-    | `OpExtInst (a, b, c, d, e) -> ( @ ) ([ 12; a; b; c; d ], e)
-    | `OpMemoryModel (a, b) -> [ 14; a; b ]
-    | `OpEntryPoint (a, b, c, d) -> ( @ ) ([ 15; a; b; c ], d)
-    | `OpExecutionMode (a, b) -> [ 16; a; b ]
-    | `OpCapability a -> [ 17; a ]
-    | `OpTypeVoid a -> [ 19; a ]
-    | `OpTypeBool a -> [ 20; a ]
-    | `OpTypeInt (a, b, c) -> [ 21; a; b; c ]
-    | `OpTypeFloat (a, b) -> [ 22; a; b ]
-    | `OpTypeVector (a, b, c) -> [ 23; a; b; c ]
-    | `OpTypeMatrix (a, b, c) -> [ 24; a; b; c ]
+        ([ 0x00000003l; value_of_source_language a; word_of_int b ] @
+           (list_of_option (apply_option word_of_id c)))
+          @ (list_of_option (apply_option words_of_string d))
+    | `OpSourceExtension a -> [ 0x00000004l ] @ (words_of_string a)
+    | `OpName (a, b) -> [ 0x00000005l; word_of_id a ] @ (words_of_string b)
+    | `OpMemberName (a, b, c) ->
+        [ 0x00000006l; word_of_id a; word_of_int b ] @ (words_of_string c)
+    | `OpString (a, b) -> [ 0x00000007l; word_of_id a ] @ (words_of_string b)
+    | `OpLine (a, b, c) ->
+        [ 0x00000008l; word_of_id a; word_of_int b; word_of_int c ]
+    | `OpExtension a -> [ 0x0000000al ] @ (words_of_string a)
+    | `OpExtInstImport (a, b) ->
+        [ 0x0000000bl; word_of_id a ] @ (words_of_string b)
+    | `OpExtInst (a, b, c, d, e) ->
+        ([ 0x0000000cl; word_of_id a; word_of_id b; word_of_id c ] @ (todo d))
+          @ (List.map word_of_id e)
+    | `OpMemoryModel (a, b) ->
+        [ 0x0000000el; value_of_addressing_model a; value_of_memory_model b ]
+    | `OpEntryPoint (a, b, c, d) ->
+        ([ 0x0000000fl; value_of_execution_model a; word_of_id b ] @
+           (words_of_string c))
+          @ (List.map word_of_id d)
+    | `OpExecutionMode (a, b) ->
+        [ 0x00000010l; word_of_id a; value_of_execution_mode b ]
+    | `OpCapability a -> [ 0x00000011l; value_of_capability a ]
+    | `OpTypeVoid a -> [ 0x00000013l; word_of_id a ]
+    | `OpTypeBool a -> [ 0x00000014l; word_of_id a ]
+    | `OpTypeInt (a, b, c) ->
+        [ 0x00000015l; word_of_id a; word_of_int b; word_of_int c ]
+    | `OpTypeFloat (a, b) -> [ 0x00000016l; word_of_id a; word_of_int b ]
+    | `OpTypeVector (a, b, c) ->
+        [ 0x00000017l; word_of_id a; word_of_id b; word_of_int c ]
+    | `OpTypeMatrix (a, b, c) ->
+        [ 0x00000018l; word_of_id a; word_of_id b; word_of_int c ]
     | `OpTypeImage (a, b, c, d, e, f, g, h, i) ->
-        ( @ ) ([ 25; a; b; c; d; e; f; g; h ], (list_of_list_opt i))
-    | `OpTypeSampler a -> [ 26; a ]
-    | `OpTypeSampledImage (a, b) -> [ 27; a; b ]
-    | `OpTypeArray (a, b, c) -> [ 28; a; b; c ]
-    | `OpTypeRuntimeArray (a, b) -> [ 29; a; b ]
-    | `OpTypeStruct (a, b) -> ( @ ) ([ 30; a ], b)
-    | `OpTypeOpaque (a, b) -> [ 31; a; b ]
-    | `OpTypePointer (a, b, c) -> [ 32; a; b; c ]
-    | `OpTypeFunction (a, b, c) -> ( @ ) ([ 33; a; b ], c)
-    | `OpTypeEvent a -> [ 34; a ]
-    | `OpTypeDeviceEvent a -> [ 35; a ]
-    | `OpTypeReserveId a -> [ 36; a ]
-    | `OpTypeQueue a -> [ 37; a ]
-    | `OpTypePipe (a, b) -> [ 38; a; b ]
-    | `OpTypeForwardPointer (a, b) -> [ 39; a; b ]
-    | `OpConstantTrue (a, b) -> [ 41; a; b ]
-    | `OpConstantFalse (a, b) -> [ 42; a; b ]
-    | `OpConstant (a, b, c) -> [ 43; a; b; c ]
-    | `OpConstantComposite (a, b, c) -> ( @ ) ([ 44; a; b ], c)
-    | `OpConstantSampler (a, b, c, d, e) -> [ 45; a; b; c; d; e ]
-    | `OpConstantNull (a, b) -> [ 46; a; b ]
-    | `OpSpecConstantTrue (a, b) -> [ 48; a; b ]
-    | `OpSpecConstantFalse (a, b) -> [ 49; a; b ]
-    | `OpSpecConstant (a, b, c) -> [ 50; a; b; c ]
-    | `OpSpecConstantComposite (a, b, c) -> ( @ ) ([ 51; a; b ], c)
-    | `OpSpecConstantOp (a, b, c) -> [ 52; a; b; c ]
-    | `OpFunction (a, b, c, d) -> [ 54; a; b; c; d ]
-    | `OpFunctionParameter (a, b) -> [ 55; a; b ]
-    | `OpFunctionEnd -> [ 56 ]
-    | `OpFunctionCall (a, b, c, d) -> ( @ ) ([ 57; a; b; c ], d)
+        [ 0x00000019l; word_of_id a; word_of_id b; value_of_dim c;
+          word_of_int d; word_of_int e; word_of_int f; word_of_int g;
+          value_of_image_format h ] @
+          (list_of_option (apply_option value_of_access_qualifier i))
+    | `OpTypeSampler a -> [ 0x0000001al; word_of_id a ]
+    | `OpTypeSampledImage (a, b) ->
+        [ 0x0000001bl; word_of_id a; word_of_id b ]
+    | `OpTypeArray (a, b, c) ->
+        [ 0x0000001cl; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpTypeRuntimeArray (a, b) ->
+        [ 0x0000001dl; word_of_id a; word_of_id b ]
+    | `OpTypeStruct (a, b) ->
+        [ 0x0000001el; word_of_id a ] @ (List.map word_of_id b)
+    | `OpTypeOpaque (a, b) ->
+        [ 0x0000001fl; word_of_id a ] @ (words_of_string b)
+    | `OpTypePointer (a, b, c) ->
+        [ 0x00000020l; word_of_id a; value_of_storage_class b; word_of_id c ]
+    | `OpTypeFunction (a, b, c) ->
+        [ 0x00000021l; word_of_id a; word_of_id b ] @ (List.map word_of_id c)
+    | `OpTypeEvent a -> [ 0x00000022l; word_of_id a ]
+    | `OpTypeDeviceEvent a -> [ 0x00000023l; word_of_id a ]
+    | `OpTypeReserveId a -> [ 0x00000024l; word_of_id a ]
+    | `OpTypeQueue a -> [ 0x00000025l; word_of_id a ]
+    | `OpTypePipe (a, b) ->
+        [ 0x00000026l; word_of_id a; value_of_access_qualifier b ]
+    | `OpTypeForwardPointer (a, b) ->
+        [ 0x00000027l; word_of_id a; value_of_storage_class b ]
+    | `OpConstantTrue (a, b) -> [ 0x00000029l; word_of_id a; word_of_id b ]
+    | `OpConstantFalse (a, b) -> [ 0x0000002al; word_of_id a; word_of_id b ]
+    | `OpConstant (a, b, c) ->
+        [ 0x0000002bl; word_of_id a; word_of_id b ] @
+          (words_of_sized_int (lookup_size a) c)
+    | `OpConstantComposite (a, b, c) ->
+        [ 0x0000002cl; word_of_id a; word_of_id b ] @ (List.map word_of_id c)
+    | `OpConstantSampler (a, b, c, d, e) ->
+        [ 0x0000002dl; word_of_id a; word_of_id b;
+          value_of_sampler_addressing_mode c; word_of_int d;
+          value_of_sampler_filter_mode e ]
+    | `OpConstantNull (a, b) -> [ 0x0000002el; word_of_id a; word_of_id b ]
+    | `OpSpecConstantTrue (a, b) ->
+        [ 0x00000030l; word_of_id a; word_of_id b ]
+    | `OpSpecConstantFalse (a, b) ->
+        [ 0x00000031l; word_of_id a; word_of_id b ]
+    | `OpSpecConstant (a, b, c) ->
+        [ 0x00000032l; word_of_id a; word_of_id b ] @
+          (words_of_sized_int (lookup_size a) c)
+    | `OpSpecConstantComposite (a, b, c) ->
+        [ 0x00000033l; word_of_id a; word_of_id b ] @ (List.map word_of_id c)
+    | `OpSpecConstantOp (a, b, c) ->
+        [ 0x00000034l; word_of_id a; word_of_id b ] @ (todo c)
+    | `OpFunction (a, b, c, d) ->
+        [ 0x00000036l; word_of_id a; word_of_id b;
+          value_of_function_control c; word_of_id d ]
+    | `OpFunctionParameter (a, b) ->
+        [ 0x00000037l; word_of_id a; word_of_id b ]
+    | `OpFunctionEnd -> [ 0x00000038l ]
+    | `OpFunctionCall (a, b, c, d) ->
+        [ 0x00000039l; word_of_id a; word_of_id b; word_of_id c ] @
+          (List.map word_of_id d)
     | `OpVariable (a, b, c, d) ->
-        ( @ ) ([ 59; a; b; c ], (list_of_list_opt d))
-    | `OpImageTexelPointer (a, b, c, d, e) -> [ 60; a; b; c; d; e ]
-    | `OpLoad (a, b, c, d) -> ( @ ) ([ 61; a; b; c ], (list_of_list_opt d))
-    | `OpStore (a, b, c) -> ( @ ) ([ 62; a; b ], (list_of_list_opt c))
-    | `OpCopyMemory (a, b, c) -> ( @ ) ([ 63; a; b ], (list_of_list_opt c))
+        [ 0x0000003bl; word_of_id a; word_of_id b; value_of_storage_class c ]
+          @ (list_of_option (apply_option word_of_id d))
+    | `OpImageTexelPointer (a, b, c, d, e) ->
+        [ 0x0000003cl; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ]
+    | `OpLoad (a, b, c, d) ->
+        [ 0x0000003dl; word_of_id a; word_of_id b; word_of_id c ] @
+          (list_of_option (apply_option value_of_memory_access d))
+    | `OpStore (a, b, c) ->
+        [ 0x0000003el; word_of_id a; word_of_id b ] @
+          (list_of_option (apply_option value_of_memory_access c))
+    | `OpCopyMemory (a, b, c) ->
+        [ 0x0000003fl; word_of_id a; word_of_id b ] @
+          (list_of_option (apply_option value_of_memory_access c))
     | `OpCopyMemorySized (a, b, c, d) ->
-        ( @ ) ([ 64; a; b; c ], (list_of_list_opt d))
-    | `OpAccessChain (a, b, c, d) -> ( @ ) ([ 65; a; b; c ], d)
-    | `OpInBoundsAccessChain (a, b, c, d) -> ( @ ) ([ 66; a; b; c ], d)
-    | `OpPtrAccessChain (a, b, c, d, e) -> ( @ ) ([ 67; a; b; c; d ], e)
-    | `OpArrayLength (a, b, c, d) -> [ 68; a; b; c; d ]
-    | `OpGenericPtrMemSemantics (a, b, c) -> [ 69; a; b; c ]
+        [ 0x00000040l; word_of_id a; word_of_id b; word_of_id c ] @
+          (list_of_option (apply_option value_of_memory_access d))
+    | `OpAccessChain (a, b, c, d) ->
+        [ 0x00000041l; word_of_id a; word_of_id b; word_of_id c ] @
+          (List.map word_of_id d)
+    | `OpInBoundsAccessChain (a, b, c, d) ->
+        [ 0x00000042l; word_of_id a; word_of_id b; word_of_id c ] @
+          (List.map word_of_id d)
+    | `OpPtrAccessChain (a, b, c, d, e) ->
+        [ 0x00000043l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+          @ (List.map word_of_id e)
+    | `OpArrayLength (a, b, c, d) ->
+        [ 0x00000044l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_int d ]
+    | `OpGenericPtrMemSemantics (a, b, c) ->
+        [ 0x00000045l; word_of_id a; word_of_id b; word_of_id c ]
     | `OpInBoundsPtrAccessChain (a, b, c, d, e) ->
-        ( @ ) ([ 70; a; b; c; d ], e)
-    | `OpDecorate (a, b) -> [ 71; a; b ]
-    | `OpMemberDecorate (a, b, c) -> [ 72; a; b; c ]
-    | `OpDecorationGroup a -> [ 73; a ]
-    | `OpGroupDecorate (a, b) -> ( @ ) ([ 74; a ], b)
-    | `OpGroupMemberDecorate (a, b) -> ( @ ) ([ 75; a ], b)
-    | `OpVectorExtractDynamic (a, b, c, d) -> [ 77; a; b; c; d ]
-    | `OpVectorInsertDynamic (a, b, c, d, e) -> [ 78; a; b; c; d; e ]
-    | `OpVectorShuffle (a, b, c, d, e) -> ( @ ) ([ 79; a; b; c; d ], e)
-    | `OpCompositeConstruct (a, b, c) -> ( @ ) ([ 80; a; b ], c)
-    | `OpCompositeExtract (a, b, c, d) -> ( @ ) ([ 81; a; b; c ], d)
-    | `OpCompositeInsert (a, b, c, d, e) -> ( @ ) ([ 82; a; b; c; d ], e)
-    | `OpCopyObject (a, b, c) -> [ 83; a; b; c ]
-    | `OpTranspose (a, b, c) -> [ 84; a; b; c ]
-    | `OpSampledImage (a, b, c, d) -> [ 86; a; b; c; d ]
+        [ 0x00000046l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+          @ (List.map word_of_id e)
+    | `OpDecorate (a, b) ->
+        [ 0x00000047l; word_of_id a; value_of_decoration b ]
+    | `OpMemberDecorate (a, b, c) ->
+        [ 0x00000048l; word_of_id a; word_of_int b; value_of_decoration c ]
+    | `OpDecorationGroup a -> [ 0x00000049l; word_of_id a ]
+    | `OpGroupDecorate (a, b) ->
+        [ 0x0000004al; word_of_id a ] @ (List.map word_of_id b)
+    | `OpGroupMemberDecorate (a, b) ->
+        [ 0x0000004bl; word_of_id a ] @
+          (List.map words_of_pair_id_ref_literal_integer b)
+    | `OpVectorExtractDynamic (a, b, c, d) ->
+        [ 0x0000004dl; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpVectorInsertDynamic (a, b, c, d, e) ->
+        [ 0x0000004el; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ]
+    | `OpVectorShuffle (a, b, c, d, e) ->
+        [ 0x0000004fl; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+          @ (List.map word_of_int e)
+    | `OpCompositeConstruct (a, b, c) ->
+        [ 0x00000050l; word_of_id a; word_of_id b ] @ (List.map word_of_id c)
+    | `OpCompositeExtract (a, b, c, d) ->
+        [ 0x00000051l; word_of_id a; word_of_id b; word_of_id c ] @
+          (List.map word_of_int d)
+    | `OpCompositeInsert (a, b, c, d, e) ->
+        [ 0x00000052l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+          @ (List.map word_of_int e)
+    | `OpCopyObject (a, b, c) ->
+        [ 0x00000053l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpTranspose (a, b, c) ->
+        [ 0x00000054l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpSampledImage (a, b, c, d) ->
+        [ 0x00000056l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
     | `OpImageSampleImplicitLod (a, b, c, d, e) ->
-        ( @ ) ([ 87; a; b; c; d ], (list_of_list_opt e))
-    | `OpImageSampleExplicitLod (a, b, c, d, e) -> [ 88; a; b; c; d; e ]
+        [ 0x00000057l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+          @ (list_of_option (apply_option value_of_image_operands e))
+    | `OpImageSampleExplicitLod (a, b, c, d, e) ->
+        [ 0x00000058l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; value_of_image_operands e ]
     | `OpImageSampleDrefImplicitLod (a, b, c, d, e, f) ->
-        ( @ ) ([ 89; a; b; c; d; e ], (list_of_list_opt f))
+        [ 0x00000059l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ] @
+          (list_of_option (apply_option value_of_image_operands f))
     | `OpImageSampleDrefExplicitLod (a, b, c, d, e, f) ->
-        [ 90; a; b; c; d; e; f ]
+        [ 0x0000005al; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; value_of_image_operands f ]
     | `OpImageSampleProjImplicitLod (a, b, c, d, e) ->
-        ( @ ) ([ 91; a; b; c; d ], (list_of_list_opt e))
-    | `OpImageSampleProjExplicitLod (a, b, c, d, e) -> [ 92; a; b; c; d; e ]
+        [ 0x0000005bl; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+          @ (list_of_option (apply_option value_of_image_operands e))
+    | `OpImageSampleProjExplicitLod (a, b, c, d, e) ->
+        [ 0x0000005cl; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; value_of_image_operands e ]
     | `OpImageSampleProjDrefImplicitLod (a, b, c, d, e, f) ->
-        ( @ ) ([ 93; a; b; c; d; e ], (list_of_list_opt f))
+        [ 0x0000005dl; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ] @
+          (list_of_option (apply_option value_of_image_operands f))
     | `OpImageSampleProjDrefExplicitLod (a, b, c, d, e, f) ->
-        [ 94; a; b; c; d; e; f ]
+        [ 0x0000005el; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; value_of_image_operands f ]
     | `OpImageFetch (a, b, c, d, e) ->
-        ( @ ) ([ 95; a; b; c; d ], (list_of_list_opt e))
+        [ 0x0000005fl; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+          @ (list_of_option (apply_option value_of_image_operands e))
     | `OpImageGather (a, b, c, d, e, f) ->
-        ( @ ) ([ 96; a; b; c; d; e ], (list_of_list_opt f))
+        [ 0x00000060l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ] @
+          (list_of_option (apply_option value_of_image_operands f))
     | `OpImageDrefGather (a, b, c, d, e, f) ->
-        ( @ ) ([ 97; a; b; c; d; e ], (list_of_list_opt f))
+        [ 0x00000061l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ] @
+          (list_of_option (apply_option value_of_image_operands f))
     | `OpImageRead (a, b, c, d, e) ->
-        ( @ ) ([ 98; a; b; c; d ], (list_of_list_opt e))
+        [ 0x00000062l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+          @ (list_of_option (apply_option value_of_image_operands e))
     | `OpImageWrite (a, b, c, d) ->
-        ( @ ) ([ 99; a; b; c ], (list_of_list_opt d))
-    | `OpImage (a, b, c) -> [ 100; a; b; c ]
-    | `OpImageQueryFormat (a, b, c) -> [ 101; a; b; c ]
-    | `OpImageQueryOrder (a, b, c) -> [ 102; a; b; c ]
-    | `OpImageQuerySizeLod (a, b, c, d) -> [ 103; a; b; c; d ]
-    | `OpImageQuerySize (a, b, c) -> [ 104; a; b; c ]
-    | `OpImageQueryLod (a, b, c, d) -> [ 105; a; b; c; d ]
-    | `OpImageQueryLevels (a, b, c) -> [ 106; a; b; c ]
-    | `OpImageQuerySamples (a, b, c) -> [ 107; a; b; c ]
-    | `OpConvertFToU (a, b, c) -> [ 109; a; b; c ]
-    | `OpConvertFToS (a, b, c) -> [ 110; a; b; c ]
-    | `OpConvertSToF (a, b, c) -> [ 111; a; b; c ]
-    | `OpConvertUToF (a, b, c) -> [ 112; a; b; c ]
-    | `OpUConvert (a, b, c) -> [ 113; a; b; c ]
-    | `OpSConvert (a, b, c) -> [ 114; a; b; c ]
-    | `OpFConvert (a, b, c) -> [ 115; a; b; c ]
-    | `OpQuantizeToF16 (a, b, c) -> [ 116; a; b; c ]
-    | `OpConvertPtrToU (a, b, c) -> [ 117; a; b; c ]
-    | `OpSatConvertSToU (a, b, c) -> [ 118; a; b; c ]
-    | `OpSatConvertUToS (a, b, c) -> [ 119; a; b; c ]
-    | `OpConvertUToPtr (a, b, c) -> [ 120; a; b; c ]
-    | `OpPtrCastToGeneric (a, b, c) -> [ 121; a; b; c ]
-    | `OpGenericCastToPtr (a, b, c) -> [ 122; a; b; c ]
-    | `OpGenericCastToPtrExplicit (a, b, c, d) -> [ 123; a; b; c; d ]
-    | `OpBitcast (a, b, c) -> [ 124; a; b; c ]
-    | `OpSNegate (a, b, c) -> [ 126; a; b; c ]
-    | `OpFNegate (a, b, c) -> [ 127; a; b; c ]
-    | `OpIAdd (a, b, c, d) -> [ 128; a; b; c; d ]
-    | `OpFAdd (a, b, c, d) -> [ 129; a; b; c; d ]
-    | `OpISub (a, b, c, d) -> [ 130; a; b; c; d ]
-    | `OpFSub (a, b, c, d) -> [ 131; a; b; c; d ]
-    | `OpIMul (a, b, c, d) -> [ 132; a; b; c; d ]
-    | `OpFMul (a, b, c, d) -> [ 133; a; b; c; d ]
-    | `OpUDiv (a, b, c, d) -> [ 134; a; b; c; d ]
-    | `OpSDiv (a, b, c, d) -> [ 135; a; b; c; d ]
-    | `OpFDiv (a, b, c, d) -> [ 136; a; b; c; d ]
-    | `OpUMod (a, b, c, d) -> [ 137; a; b; c; d ]
-    | `OpSRem (a, b, c, d) -> [ 138; a; b; c; d ]
-    | `OpSMod (a, b, c, d) -> [ 139; a; b; c; d ]
-    | `OpFRem (a, b, c, d) -> [ 140; a; b; c; d ]
-    | `OpFMod (a, b, c, d) -> [ 141; a; b; c; d ]
-    | `OpVectorTimesScalar (a, b, c, d) -> [ 142; a; b; c; d ]
-    | `OpMatrixTimesScalar (a, b, c, d) -> [ 143; a; b; c; d ]
-    | `OpVectorTimesMatrix (a, b, c, d) -> [ 144; a; b; c; d ]
-    | `OpMatrixTimesVector (a, b, c, d) -> [ 145; a; b; c; d ]
-    | `OpMatrixTimesMatrix (a, b, c, d) -> [ 146; a; b; c; d ]
-    | `OpOuterProduct (a, b, c, d) -> [ 147; a; b; c; d ]
-    | `OpDot (a, b, c, d) -> [ 148; a; b; c; d ]
-    | `OpIAddCarry (a, b, c, d) -> [ 149; a; b; c; d ]
-    | `OpISubBorrow (a, b, c, d) -> [ 150; a; b; c; d ]
-    | `OpUMulExtended (a, b, c, d) -> [ 151; a; b; c; d ]
-    | `OpSMulExtended (a, b, c, d) -> [ 152; a; b; c; d ]
-    | `OpAny (a, b, c) -> [ 154; a; b; c ]
-    | `OpAll (a, b, c) -> [ 155; a; b; c ]
-    | `OpIsNan (a, b, c) -> [ 156; a; b; c ]
-    | `OpIsInf (a, b, c) -> [ 157; a; b; c ]
-    | `OpIsFinite (a, b, c) -> [ 158; a; b; c ]
-    | `OpIsNormal (a, b, c) -> [ 159; a; b; c ]
-    | `OpSignBitSet (a, b, c) -> [ 160; a; b; c ]
-    | `OpLessOrGreater (a, b, c, d) -> [ 161; a; b; c; d ]
-    | `OpOrdered (a, b, c, d) -> [ 162; a; b; c; d ]
-    | `OpUnordered (a, b, c, d) -> [ 163; a; b; c; d ]
-    | `OpLogicalEqual (a, b, c, d) -> [ 164; a; b; c; d ]
-    | `OpLogicalNotEqual (a, b, c, d) -> [ 165; a; b; c; d ]
-    | `OpLogicalOr (a, b, c, d) -> [ 166; a; b; c; d ]
-    | `OpLogicalAnd (a, b, c, d) -> [ 167; a; b; c; d ]
-    | `OpLogicalNot (a, b, c) -> [ 168; a; b; c ]
-    | `OpSelect (a, b, c, d, e) -> [ 169; a; b; c; d; e ]
-    | `OpIEqual (a, b, c, d) -> [ 170; a; b; c; d ]
-    | `OpINotEqual (a, b, c, d) -> [ 171; a; b; c; d ]
-    | `OpUGreaterThan (a, b, c, d) -> [ 172; a; b; c; d ]
-    | `OpSGreaterThan (a, b, c, d) -> [ 173; a; b; c; d ]
-    | `OpUGreaterThanEqual (a, b, c, d) -> [ 174; a; b; c; d ]
-    | `OpSGreaterThanEqual (a, b, c, d) -> [ 175; a; b; c; d ]
-    | `OpULessThan (a, b, c, d) -> [ 176; a; b; c; d ]
-    | `OpSLessThan (a, b, c, d) -> [ 177; a; b; c; d ]
-    | `OpULessThanEqual (a, b, c, d) -> [ 178; a; b; c; d ]
-    | `OpSLessThanEqual (a, b, c, d) -> [ 179; a; b; c; d ]
-    | `OpFOrdEqual (a, b, c, d) -> [ 180; a; b; c; d ]
-    | `OpFUnordEqual (a, b, c, d) -> [ 181; a; b; c; d ]
-    | `OpFOrdNotEqual (a, b, c, d) -> [ 182; a; b; c; d ]
-    | `OpFUnordNotEqual (a, b, c, d) -> [ 183; a; b; c; d ]
-    | `OpFOrdLessThan (a, b, c, d) -> [ 184; a; b; c; d ]
-    | `OpFUnordLessThan (a, b, c, d) -> [ 185; a; b; c; d ]
-    | `OpFOrdGreaterThan (a, b, c, d) -> [ 186; a; b; c; d ]
-    | `OpFUnordGreaterThan (a, b, c, d) -> [ 187; a; b; c; d ]
-    | `OpFOrdLessThanEqual (a, b, c, d) -> [ 188; a; b; c; d ]
-    | `OpFUnordLessThanEqual (a, b, c, d) -> [ 189; a; b; c; d ]
-    | `OpFOrdGreaterThanEqual (a, b, c, d) -> [ 190; a; b; c; d ]
-    | `OpFUnordGreaterThanEqual (a, b, c, d) -> [ 191; a; b; c; d ]
-    | `OpShiftRightLogical (a, b, c, d) -> [ 194; a; b; c; d ]
-    | `OpShiftRightArithmetic (a, b, c, d) -> [ 195; a; b; c; d ]
-    | `OpShiftLeftLogical (a, b, c, d) -> [ 196; a; b; c; d ]
-    | `OpBitwiseOr (a, b, c, d) -> [ 197; a; b; c; d ]
-    | `OpBitwiseXor (a, b, c, d) -> [ 198; a; b; c; d ]
-    | `OpBitwiseAnd (a, b, c, d) -> [ 199; a; b; c; d ]
-    | `OpNot (a, b, c) -> [ 200; a; b; c ]
-    | `OpBitFieldInsert (a, b, c, d, e, f) -> [ 201; a; b; c; d; e; f ]
-    | `OpBitFieldSExtract (a, b, c, d, e) -> [ 202; a; b; c; d; e ]
-    | `OpBitFieldUExtract (a, b, c, d, e) -> [ 203; a; b; c; d; e ]
-    | `OpBitReverse (a, b, c) -> [ 204; a; b; c ]
-    | `OpBitCount (a, b, c) -> [ 205; a; b; c ]
-    | `OpDPdx (a, b, c) -> [ 207; a; b; c ]
-    | `OpDPdy (a, b, c) -> [ 208; a; b; c ]
-    | `OpFwidth (a, b, c) -> [ 209; a; b; c ]
-    | `OpDPdxFine (a, b, c) -> [ 210; a; b; c ]
-    | `OpDPdyFine (a, b, c) -> [ 211; a; b; c ]
-    | `OpFwidthFine (a, b, c) -> [ 212; a; b; c ]
-    | `OpDPdxCoarse (a, b, c) -> [ 213; a; b; c ]
-    | `OpDPdyCoarse (a, b, c) -> [ 214; a; b; c ]
-    | `OpFwidthCoarse (a, b, c) -> [ 215; a; b; c ]
-    | `OpEmitVertex -> [ 218 ]
-    | `OpEndPrimitive -> [ 219 ]
-    | `OpEmitStreamVertex a -> [ 220; a ]
-    | `OpEndStreamPrimitive a -> [ 221; a ]
-    | `OpControlBarrier (a, b, c) -> [ 224; a; b; c ]
-    | `OpMemoryBarrier (a, b) -> [ 225; a; b ]
-    | `OpAtomicLoad (a, b, c, d, e) -> [ 227; a; b; c; d; e ]
-    | `OpAtomicStore (a, b, c, d) -> [ 228; a; b; c; d ]
-    | `OpAtomicExchange (a, b, c, d, e, f) -> [ 229; a; b; c; d; e; f ]
+        [ 0x00000063l; word_of_id a; word_of_id b; word_of_id c ] @
+          (list_of_option (apply_option value_of_image_operands d))
+    | `OpImage (a, b, c) ->
+        [ 0x00000064l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpImageQueryFormat (a, b, c) ->
+        [ 0x00000065l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpImageQueryOrder (a, b, c) ->
+        [ 0x00000066l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpImageQuerySizeLod (a, b, c, d) ->
+        [ 0x00000067l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpImageQuerySize (a, b, c) ->
+        [ 0x00000068l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpImageQueryLod (a, b, c, d) ->
+        [ 0x00000069l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpImageQueryLevels (a, b, c) ->
+        [ 0x0000006al; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpImageQuerySamples (a, b, c) ->
+        [ 0x0000006bl; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpConvertFToU (a, b, c) ->
+        [ 0x0000006dl; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpConvertFToS (a, b, c) ->
+        [ 0x0000006el; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpConvertSToF (a, b, c) ->
+        [ 0x0000006fl; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpConvertUToF (a, b, c) ->
+        [ 0x00000070l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpUConvert (a, b, c) ->
+        [ 0x00000071l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpSConvert (a, b, c) ->
+        [ 0x00000072l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpFConvert (a, b, c) ->
+        [ 0x00000073l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpQuantizeToF16 (a, b, c) ->
+        [ 0x00000074l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpConvertPtrToU (a, b, c) ->
+        [ 0x00000075l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpSatConvertSToU (a, b, c) ->
+        [ 0x00000076l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpSatConvertUToS (a, b, c) ->
+        [ 0x00000077l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpConvertUToPtr (a, b, c) ->
+        [ 0x00000078l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpPtrCastToGeneric (a, b, c) ->
+        [ 0x00000079l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpGenericCastToPtr (a, b, c) ->
+        [ 0x0000007al; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpGenericCastToPtrExplicit (a, b, c, d) ->
+        [ 0x0000007bl; word_of_id a; word_of_id b; word_of_id c;
+          value_of_storage_class d ]
+    | `OpBitcast (a, b, c) ->
+        [ 0x0000007cl; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpSNegate (a, b, c) ->
+        [ 0x0000007el; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpFNegate (a, b, c) ->
+        [ 0x0000007fl; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpIAdd (a, b, c, d) ->
+        [ 0x00000080l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpFAdd (a, b, c, d) ->
+        [ 0x00000081l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpISub (a, b, c, d) ->
+        [ 0x00000082l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpFSub (a, b, c, d) ->
+        [ 0x00000083l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpIMul (a, b, c, d) ->
+        [ 0x00000084l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpFMul (a, b, c, d) ->
+        [ 0x00000085l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpUDiv (a, b, c, d) ->
+        [ 0x00000086l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpSDiv (a, b, c, d) ->
+        [ 0x00000087l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpFDiv (a, b, c, d) ->
+        [ 0x00000088l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpUMod (a, b, c, d) ->
+        [ 0x00000089l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpSRem (a, b, c, d) ->
+        [ 0x0000008al; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpSMod (a, b, c, d) ->
+        [ 0x0000008bl; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpFRem (a, b, c, d) ->
+        [ 0x0000008cl; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpFMod (a, b, c, d) ->
+        [ 0x0000008dl; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpVectorTimesScalar (a, b, c, d) ->
+        [ 0x0000008el; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpMatrixTimesScalar (a, b, c, d) ->
+        [ 0x0000008fl; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpVectorTimesMatrix (a, b, c, d) ->
+        [ 0x00000090l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpMatrixTimesVector (a, b, c, d) ->
+        [ 0x00000091l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpMatrixTimesMatrix (a, b, c, d) ->
+        [ 0x00000092l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpOuterProduct (a, b, c, d) ->
+        [ 0x00000093l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpDot (a, b, c, d) ->
+        [ 0x00000094l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpIAddCarry (a, b, c, d) ->
+        [ 0x00000095l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpISubBorrow (a, b, c, d) ->
+        [ 0x00000096l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpUMulExtended (a, b, c, d) ->
+        [ 0x00000097l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpSMulExtended (a, b, c, d) ->
+        [ 0x00000098l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpAny (a, b, c) ->
+        [ 0x0000009al; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpAll (a, b, c) ->
+        [ 0x0000009bl; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpIsNan (a, b, c) ->
+        [ 0x0000009cl; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpIsInf (a, b, c) ->
+        [ 0x0000009dl; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpIsFinite (a, b, c) ->
+        [ 0x0000009el; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpIsNormal (a, b, c) ->
+        [ 0x0000009fl; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpSignBitSet (a, b, c) ->
+        [ 0x000000a0l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpLessOrGreater (a, b, c, d) ->
+        [ 0x000000a1l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpOrdered (a, b, c, d) ->
+        [ 0x000000a2l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpUnordered (a, b, c, d) ->
+        [ 0x000000a3l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpLogicalEqual (a, b, c, d) ->
+        [ 0x000000a4l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpLogicalNotEqual (a, b, c, d) ->
+        [ 0x000000a5l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpLogicalOr (a, b, c, d) ->
+        [ 0x000000a6l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpLogicalAnd (a, b, c, d) ->
+        [ 0x000000a7l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpLogicalNot (a, b, c) ->
+        [ 0x000000a8l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpSelect (a, b, c, d, e) ->
+        [ 0x000000a9l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ]
+    | `OpIEqual (a, b, c, d) ->
+        [ 0x000000aal; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpINotEqual (a, b, c, d) ->
+        [ 0x000000abl; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpUGreaterThan (a, b, c, d) ->
+        [ 0x000000acl; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpSGreaterThan (a, b, c, d) ->
+        [ 0x000000adl; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpUGreaterThanEqual (a, b, c, d) ->
+        [ 0x000000ael; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpSGreaterThanEqual (a, b, c, d) ->
+        [ 0x000000afl; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpULessThan (a, b, c, d) ->
+        [ 0x000000b0l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpSLessThan (a, b, c, d) ->
+        [ 0x000000b1l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpULessThanEqual (a, b, c, d) ->
+        [ 0x000000b2l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpSLessThanEqual (a, b, c, d) ->
+        [ 0x000000b3l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpFOrdEqual (a, b, c, d) ->
+        [ 0x000000b4l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpFUnordEqual (a, b, c, d) ->
+        [ 0x000000b5l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpFOrdNotEqual (a, b, c, d) ->
+        [ 0x000000b6l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpFUnordNotEqual (a, b, c, d) ->
+        [ 0x000000b7l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpFOrdLessThan (a, b, c, d) ->
+        [ 0x000000b8l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpFUnordLessThan (a, b, c, d) ->
+        [ 0x000000b9l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpFOrdGreaterThan (a, b, c, d) ->
+        [ 0x000000bal; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpFUnordGreaterThan (a, b, c, d) ->
+        [ 0x000000bbl; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpFOrdLessThanEqual (a, b, c, d) ->
+        [ 0x000000bcl; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpFUnordLessThanEqual (a, b, c, d) ->
+        [ 0x000000bdl; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpFOrdGreaterThanEqual (a, b, c, d) ->
+        [ 0x000000bel; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpFUnordGreaterThanEqual (a, b, c, d) ->
+        [ 0x000000bfl; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpShiftRightLogical (a, b, c, d) ->
+        [ 0x000000c2l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpShiftRightArithmetic (a, b, c, d) ->
+        [ 0x000000c3l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpShiftLeftLogical (a, b, c, d) ->
+        [ 0x000000c4l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpBitwiseOr (a, b, c, d) ->
+        [ 0x000000c5l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpBitwiseXor (a, b, c, d) ->
+        [ 0x000000c6l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpBitwiseAnd (a, b, c, d) ->
+        [ 0x000000c7l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpNot (a, b, c) ->
+        [ 0x000000c8l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpBitFieldInsert (a, b, c, d, e, f) ->
+        [ 0x000000c9l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f ]
+    | `OpBitFieldSExtract (a, b, c, d, e) ->
+        [ 0x000000cal; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ]
+    | `OpBitFieldUExtract (a, b, c, d, e) ->
+        [ 0x000000cbl; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ]
+    | `OpBitReverse (a, b, c) ->
+        [ 0x000000ccl; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpBitCount (a, b, c) ->
+        [ 0x000000cdl; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpDPdx (a, b, c) ->
+        [ 0x000000cfl; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpDPdy (a, b, c) ->
+        [ 0x000000d0l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpFwidth (a, b, c) ->
+        [ 0x000000d1l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpDPdxFine (a, b, c) ->
+        [ 0x000000d2l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpDPdyFine (a, b, c) ->
+        [ 0x000000d3l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpFwidthFine (a, b, c) ->
+        [ 0x000000d4l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpDPdxCoarse (a, b, c) ->
+        [ 0x000000d5l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpDPdyCoarse (a, b, c) ->
+        [ 0x000000d6l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpFwidthCoarse (a, b, c) ->
+        [ 0x000000d7l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpEmitVertex -> [ 0x000000dal ]
+    | `OpEndPrimitive -> [ 0x000000dbl ]
+    | `OpEmitStreamVertex a -> [ 0x000000dcl; word_of_id a ]
+    | `OpEndStreamPrimitive a -> [ 0x000000ddl; word_of_id a ]
+    | `OpControlBarrier (a, b, c) ->
+        [ 0x000000e0l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpMemoryBarrier (a, b) -> [ 0x000000e1l; word_of_id a; word_of_id b ]
+    | `OpAtomicLoad (a, b, c, d, e) ->
+        [ 0x000000e3l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ]
+    | `OpAtomicStore (a, b, c, d) ->
+        [ 0x000000e4l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpAtomicExchange (a, b, c, d, e, f) ->
+        [ 0x000000e5l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f ]
     | `OpAtomicCompareExchange (a, b, c, d, e, f, g, h) ->
-        [ 230; a; b; c; d; e; f; g; h ]
+        [ 0x000000e6l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f; word_of_id g;
+          word_of_id h ]
     | `OpAtomicCompareExchangeWeak (a, b, c, d, e, f, g, h) ->
-        [ 231; a; b; c; d; e; f; g; h ]
-    | `OpAtomicIIncrement (a, b, c, d, e) -> [ 232; a; b; c; d; e ]
-    | `OpAtomicIDecrement (a, b, c, d, e) -> [ 233; a; b; c; d; e ]
-    | `OpAtomicIAdd (a, b, c, d, e, f) -> [ 234; a; b; c; d; e; f ]
-    | `OpAtomicISub (a, b, c, d, e, f) -> [ 235; a; b; c; d; e; f ]
-    | `OpAtomicSMin (a, b, c, d, e, f) -> [ 236; a; b; c; d; e; f ]
-    | `OpAtomicUMin (a, b, c, d, e, f) -> [ 237; a; b; c; d; e; f ]
-    | `OpAtomicSMax (a, b, c, d, e, f) -> [ 238; a; b; c; d; e; f ]
-    | `OpAtomicUMax (a, b, c, d, e, f) -> [ 239; a; b; c; d; e; f ]
-    | `OpAtomicAnd (a, b, c, d, e, f) -> [ 240; a; b; c; d; e; f ]
-    | `OpAtomicOr (a, b, c, d, e, f) -> [ 241; a; b; c; d; e; f ]
-    | `OpAtomicXor (a, b, c, d, e, f) -> [ 242; a; b; c; d; e; f ]
-    | `OpPhi (a, b, c) -> ( @ ) ([ 245; a; b ], c)
-    | `OpLoopMerge (a, b, c) -> [ 246; a; b; c ]
-    | `OpSelectionMerge (a, b) -> [ 247; a; b ]
-    | `OpLabel a -> [ 248; a ]
-    | `OpBranch a -> [ 249; a ]
-    | `OpBranchConditional (a, b, c, d) -> ( @ ) ([ 250; a; b; c ], d)
-    | `OpSwitch (a, b, c) -> ( @ ) ([ 251; a; b ], c)
-    | `OpKill -> [ 252 ]
-    | `OpReturn -> [ 253 ]
-    | `OpReturnValue a -> [ 254; a ]
-    | `OpUnreachable -> [ 255 ]
-    | `OpLifetimeStart (a, b) -> [ 256; a; b ]
-    | `OpLifetimeStop (a, b) -> [ 257; a; b ]
+        [ 0x000000e7l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f; word_of_id g;
+          word_of_id h ]
+    | `OpAtomicIIncrement (a, b, c, d, e) ->
+        [ 0x000000e8l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ]
+    | `OpAtomicIDecrement (a, b, c, d, e) ->
+        [ 0x000000e9l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ]
+    | `OpAtomicIAdd (a, b, c, d, e, f) ->
+        [ 0x000000eal; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f ]
+    | `OpAtomicISub (a, b, c, d, e, f) ->
+        [ 0x000000ebl; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f ]
+    | `OpAtomicSMin (a, b, c, d, e, f) ->
+        [ 0x000000ecl; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f ]
+    | `OpAtomicUMin (a, b, c, d, e, f) ->
+        [ 0x000000edl; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f ]
+    | `OpAtomicSMax (a, b, c, d, e, f) ->
+        [ 0x000000eel; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f ]
+    | `OpAtomicUMax (a, b, c, d, e, f) ->
+        [ 0x000000efl; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f ]
+    | `OpAtomicAnd (a, b, c, d, e, f) ->
+        [ 0x000000f0l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f ]
+    | `OpAtomicOr (a, b, c, d, e, f) ->
+        [ 0x000000f1l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f ]
+    | `OpAtomicXor (a, b, c, d, e, f) ->
+        [ 0x000000f2l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f ]
+    | `OpPhi (a, b, c) ->
+        [ 0x000000f5l; word_of_id a; word_of_id b ] @
+          (List.map words_of_pair_id_ref_id_ref c)
+    | `OpLoopMerge (a, b, c) ->
+        [ 0x000000f6l; word_of_id a; word_of_id b; value_of_loop_control c ]
+    | `OpSelectionMerge (a, b) ->
+        [ 0x000000f7l; word_of_id a; value_of_selection_control b ]
+    | `OpLabel a -> [ 0x000000f8l; word_of_id a ]
+    | `OpBranch a -> [ 0x000000f9l; word_of_id a ]
+    | `OpBranchConditional (a, b, c, d) ->
+        [ 0x000000fal; word_of_id a; word_of_id b; word_of_id c ] @
+          (List.map word_of_int d)
+    | `OpSwitch (a, b, c) ->
+        [ 0x000000fbl; word_of_id a; word_of_id b ] @
+          (List.map words_of_pair_literal_integer_id_ref c)
+    | `OpKill -> [ 0x000000fcl ]
+    | `OpReturn -> [ 0x000000fdl ]
+    | `OpReturnValue a -> [ 0x000000fel; word_of_id a ]
+    | `OpUnreachable -> [ 0x000000ffl ]
+    | `OpLifetimeStart (a, b) -> [ 0x00000100l; word_of_id a; word_of_int b ]
+    | `OpLifetimeStop (a, b) -> [ 0x00000101l; word_of_id a; word_of_int b ]
     | `OpGroupAsyncCopy (a, b, c, d, e, f, g, h) ->
-        [ 259; a; b; c; d; e; f; g; h ]
-    | `OpGroupWaitEvents (a, b, c) -> [ 260; a; b; c ]
-    | `OpGroupAll (a, b, c, d) -> [ 261; a; b; c; d ]
-    | `OpGroupAny (a, b, c, d) -> [ 262; a; b; c; d ]
-    | `OpGroupBroadcast (a, b, c, d, e) -> [ 263; a; b; c; d; e ]
-    | `OpGroupIAdd (a, b, c, d, e) -> [ 264; a; b; c; d; e ]
-    | `OpGroupFAdd (a, b, c, d, e) -> [ 265; a; b; c; d; e ]
-    | `OpGroupFMin (a, b, c, d, e) -> [ 266; a; b; c; d; e ]
-    | `OpGroupUMin (a, b, c, d, e) -> [ 267; a; b; c; d; e ]
-    | `OpGroupSMin (a, b, c, d, e) -> [ 268; a; b; c; d; e ]
-    | `OpGroupFMax (a, b, c, d, e) -> [ 269; a; b; c; d; e ]
-    | `OpGroupUMax (a, b, c, d, e) -> [ 270; a; b; c; d; e ]
-    | `OpGroupSMax (a, b, c, d, e) -> [ 271; a; b; c; d; e ]
-    | `OpReadPipe (a, b, c, d, e, f) -> [ 274; a; b; c; d; e; f ]
-    | `OpWritePipe (a, b, c, d, e, f) -> [ 275; a; b; c; d; e; f ]
+        [ 0x00000103l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f; word_of_id g;
+          word_of_id h ]
+    | `OpGroupWaitEvents (a, b, c) ->
+        [ 0x00000104l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpGroupAll (a, b, c, d) ->
+        [ 0x00000105l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpGroupAny (a, b, c, d) ->
+        [ 0x00000106l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpGroupBroadcast (a, b, c, d, e) ->
+        [ 0x00000107l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ]
+    | `OpGroupIAdd (a, b, c, d, e) ->
+        [ 0x00000108l; word_of_id a; word_of_id b; word_of_id c;
+          value_of_group_operation d; word_of_id e ]
+    | `OpGroupFAdd (a, b, c, d, e) ->
+        [ 0x00000109l; word_of_id a; word_of_id b; word_of_id c;
+          value_of_group_operation d; word_of_id e ]
+    | `OpGroupFMin (a, b, c, d, e) ->
+        [ 0x0000010al; word_of_id a; word_of_id b; word_of_id c;
+          value_of_group_operation d; word_of_id e ]
+    | `OpGroupUMin (a, b, c, d, e) ->
+        [ 0x0000010bl; word_of_id a; word_of_id b; word_of_id c;
+          value_of_group_operation d; word_of_id e ]
+    | `OpGroupSMin (a, b, c, d, e) ->
+        [ 0x0000010cl; word_of_id a; word_of_id b; word_of_id c;
+          value_of_group_operation d; word_of_id e ]
+    | `OpGroupFMax (a, b, c, d, e) ->
+        [ 0x0000010dl; word_of_id a; word_of_id b; word_of_id c;
+          value_of_group_operation d; word_of_id e ]
+    | `OpGroupUMax (a, b, c, d, e) ->
+        [ 0x0000010el; word_of_id a; word_of_id b; word_of_id c;
+          value_of_group_operation d; word_of_id e ]
+    | `OpGroupSMax (a, b, c, d, e) ->
+        [ 0x0000010fl; word_of_id a; word_of_id b; word_of_id c;
+          value_of_group_operation d; word_of_id e ]
+    | `OpReadPipe (a, b, c, d, e, f) ->
+        [ 0x00000112l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f ]
+    | `OpWritePipe (a, b, c, d, e, f) ->
+        [ 0x00000113l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f ]
     | `OpReservedReadPipe (a, b, c, d, e, f, g, h) ->
-        [ 276; a; b; c; d; e; f; g; h ]
+        [ 0x00000114l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f; word_of_id g;
+          word_of_id h ]
     | `OpReservedWritePipe (a, b, c, d, e, f, g, h) ->
-        [ 277; a; b; c; d; e; f; g; h ]
+        [ 0x00000115l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f; word_of_id g;
+          word_of_id h ]
     | `OpReserveReadPipePackets (a, b, c, d, e, f) ->
-        [ 278; a; b; c; d; e; f ]
+        [ 0x00000116l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f ]
     | `OpReserveWritePipePackets (a, b, c, d, e, f) ->
-        [ 279; a; b; c; d; e; f ]
-    | `OpCommitReadPipe (a, b, c, d) -> [ 280; a; b; c; d ]
-    | `OpCommitWritePipe (a, b, c, d) -> [ 281; a; b; c; d ]
-    | `OpIsValidReserveId (a, b, c) -> [ 282; a; b; c ]
-    | `OpGetNumPipePackets (a, b, c, d, e) -> [ 283; a; b; c; d; e ]
-    | `OpGetMaxPipePackets (a, b, c, d, e) -> [ 284; a; b; c; d; e ]
+        [ 0x00000117l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f ]
+    | `OpCommitReadPipe (a, b, c, d) ->
+        [ 0x00000118l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpCommitWritePipe (a, b, c, d) ->
+        [ 0x00000119l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+    | `OpIsValidReserveId (a, b, c) ->
+        [ 0x0000011al; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpGetNumPipePackets (a, b, c, d, e) ->
+        [ 0x0000011bl; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ]
+    | `OpGetMaxPipePackets (a, b, c, d, e) ->
+        [ 0x0000011cl; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ]
     | `OpGroupReserveReadPipePackets (a, b, c, d, e, f, g) ->
-        [ 285; a; b; c; d; e; f; g ]
+        [ 0x0000011dl; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f; word_of_id g ]
     | `OpGroupReserveWritePipePackets (a, b, c, d, e, f, g) ->
-        [ 286; a; b; c; d; e; f; g ]
-    | `OpGroupCommitReadPipe (a, b, c, d, e) -> [ 287; a; b; c; d; e ]
-    | `OpGroupCommitWritePipe (a, b, c, d, e) -> [ 288; a; b; c; d; e ]
-    | `OpEnqueueMarker (a, b, c, d, e, f) -> [ 291; a; b; c; d; e; f ]
+        [ 0x0000011el; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f; word_of_id g ]
+    | `OpGroupCommitReadPipe (a, b, c, d, e) ->
+        [ 0x0000011fl; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ]
+    | `OpGroupCommitWritePipe (a, b, c, d, e) ->
+        [ 0x00000120l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ]
+    | `OpEnqueueMarker (a, b, c, d, e, f) ->
+        [ 0x00000123l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f ]
     | `OpEnqueueKernel (a, b, c, d, e, f, g, h, i, j, k, l, m) ->
-        ( @ ) ([ 292; a; b; c; d; e; f; g; h; i; j; k; l ], m)
+        [ 0x00000124l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f; word_of_id g;
+          word_of_id h; word_of_id i; word_of_id j; word_of_id k;
+          word_of_id l ] @ (List.map word_of_id m)
     | `OpGetKernelNDrangeSubGroupCount (a, b, c, d, e, f, g) ->
-        [ 293; a; b; c; d; e; f; g ]
+        [ 0x00000125l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f; word_of_id g ]
     | `OpGetKernelNDrangeMaxSubGroupSize (a, b, c, d, e, f, g) ->
-        [ 294; a; b; c; d; e; f; g ]
+        [ 0x00000126l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f; word_of_id g ]
     | `OpGetKernelWorkGroupSize (a, b, c, d, e, f) ->
-        [ 295; a; b; c; d; e; f ]
+        [ 0x00000127l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f ]
     | `OpGetKernelPreferredWorkGroupSizeMultiple (a, b, c, d, e, f) ->
-        [ 296; a; b; c; d; e; f ]
-    | `OpRetainEvent a -> [ 297; a ]
-    | `OpReleaseEvent a -> [ 298; a ]
-    | `OpCreateUserEvent (a, b) -> [ 299; a; b ]
-    | `OpIsValidEvent (a, b, c) -> [ 300; a; b; c ]
-    | `OpSetUserEventStatus (a, b) -> [ 301; a; b ]
-    | `OpCaptureEventProfilingInfo (a, b, c) -> [ 302; a; b; c ]
-    | `OpGetDefaultQueue (a, b) -> [ 303; a; b ]
-    | `OpBuildNDRange (a, b, c, d, e) -> [ 304; a; b; c; d; e ]
+        [ 0x00000128l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f ]
+    | `OpRetainEvent a -> [ 0x00000129l; word_of_id a ]
+    | `OpReleaseEvent a -> [ 0x0000012al; word_of_id a ]
+    | `OpCreateUserEvent (a, b) ->
+        [ 0x0000012bl; word_of_id a; word_of_id b ]
+    | `OpIsValidEvent (a, b, c) ->
+        [ 0x0000012cl; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpSetUserEventStatus (a, b) ->
+        [ 0x0000012dl; word_of_id a; word_of_id b ]
+    | `OpCaptureEventProfilingInfo (a, b, c) ->
+        [ 0x0000012el; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpGetDefaultQueue (a, b) ->
+        [ 0x0000012fl; word_of_id a; word_of_id b ]
+    | `OpBuildNDRange (a, b, c, d, e) ->
+        [ 0x00000130l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ]
     | `OpImageSparseSampleImplicitLod (a, b, c, d, e) ->
-        ( @ ) ([ 305; a; b; c; d ], (list_of_list_opt e))
+        [ 0x00000131l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+          @ (list_of_option (apply_option value_of_image_operands e))
     | `OpImageSparseSampleExplicitLod (a, b, c, d, e) ->
-        [ 306; a; b; c; d; e ]
+        [ 0x00000132l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; value_of_image_operands e ]
     | `OpImageSparseSampleDrefImplicitLod (a, b, c, d, e, f) ->
-        ( @ ) ([ 307; a; b; c; d; e ], (list_of_list_opt f))
+        [ 0x00000133l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ] @
+          (list_of_option (apply_option value_of_image_operands f))
     | `OpImageSparseSampleDrefExplicitLod (a, b, c, d, e, f) ->
-        [ 308; a; b; c; d; e; f ]
+        [ 0x00000134l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; value_of_image_operands f ]
     | `OpImageSparseSampleProjImplicitLod (a, b, c, d, e) ->
-        ( @ ) ([ 309; a; b; c; d ], (list_of_list_opt e))
+        [ 0x00000135l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+          @ (list_of_option (apply_option value_of_image_operands e))
     | `OpImageSparseSampleProjExplicitLod (a, b, c, d, e) ->
-        [ 310; a; b; c; d; e ]
+        [ 0x00000136l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; value_of_image_operands e ]
     | `OpImageSparseSampleProjDrefImplicitLod (a, b, c, d, e, f) ->
-        ( @ ) ([ 311; a; b; c; d; e ], (list_of_list_opt f))
+        [ 0x00000137l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ] @
+          (list_of_option (apply_option value_of_image_operands f))
     | `OpImageSparseSampleProjDrefExplicitLod (a, b, c, d, e, f) ->
-        [ 312; a; b; c; d; e; f ]
+        [ 0x00000138l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; value_of_image_operands f ]
     | `OpImageSparseFetch (a, b, c, d, e) ->
-        ( @ ) ([ 313; a; b; c; d ], (list_of_list_opt e))
+        [ 0x00000139l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+          @ (list_of_option (apply_option value_of_image_operands e))
     | `OpImageSparseGather (a, b, c, d, e, f) ->
-        ( @ ) ([ 314; a; b; c; d; e ], (list_of_list_opt f))
+        [ 0x0000013al; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ] @
+          (list_of_option (apply_option value_of_image_operands f))
     | `OpImageSparseDrefGather (a, b, c, d, e, f) ->
-        ( @ ) ([ 315; a; b; c; d; e ], (list_of_list_opt f))
-    | `OpImageSparseTexelsResident (a, b, c) -> [ 316; a; b; c ]
-    | `OpNoLine -> [ 317 ]
-    | `OpAtomicFlagTestAndSet (a, b, c, d, e) -> [ 318; a; b; c; d; e ]
-    | `OpAtomicFlagClear (a, b, c) -> [ 319; a; b; c ]
+        [ 0x0000013bl; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ] @
+          (list_of_option (apply_option value_of_image_operands f))
+    | `OpImageSparseTexelsResident (a, b, c) ->
+        [ 0x0000013cl; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpNoLine -> [ 0x0000013dl ]
+    | `OpAtomicFlagTestAndSet (a, b, c, d, e) ->
+        [ 0x0000013el; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e ]
+    | `OpAtomicFlagClear (a, b, c) ->
+        [ 0x0000013fl; word_of_id a; word_of_id b; word_of_id c ]
     | `OpImageSparseRead (a, b, c, d, e) ->
-        ( @ ) ([ 320; a; b; c; d ], (list_of_list_opt e))
-    | `OpSizeOf (a, b, c) -> [ 321; a; b; c ]
-    | `OpTypePipeStorage a -> [ 322; a ]
-    | `OpConstantPipeStorage (a, b, c, d, e) -> [ 323; a; b; c; d; e ]
-    | `OpCreatePipeFromPipeStorage (a, b, c) -> [ 324; a; b; c ]
+        [ 0x00000140l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
+          @ (list_of_option (apply_option value_of_image_operands e))
+    | `OpSizeOf (a, b, c) ->
+        [ 0x00000141l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpTypePipeStorage a -> [ 0x00000142l; word_of_id a ]
+    | `OpConstantPipeStorage (a, b, c, d, e) ->
+        [ 0x00000143l; word_of_id a; word_of_id b; word_of_int c;
+          word_of_int d; word_of_int e ]
+    | `OpCreatePipeFromPipeStorage (a, b, c) ->
+        [ 0x00000144l; word_of_id a; word_of_id b; word_of_id c ]
     | `OpGetKernelLocalSizeForSubgroupCount (a, b, c, d, e, f, g) ->
-        [ 325; a; b; c; d; e; f; g ]
+        [ 0x00000145l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f; word_of_id g ]
     | `OpGetKernelMaxNumSubgroups (a, b, c, d, e, f) ->
-        [ 326; a; b; c; d; e; f ]
-    | `OpTypeNamedBarrier a -> [ 327; a ]
-    | `OpNamedBarrierInitialize (a, b, c) -> [ 328; a; b; c ]
-    | `OpMemoryNamedBarrier (a, b, c) -> [ 329; a; b; c ]
-    | `OpModuleProcessed a -> [ 330; a ]
-    | `OpSubgroupBallotKHR (a, b, c) -> [ 4421; a; b; c ]
-    | `OpSubgroupFirstInvocationKHR (a, b, c) -> [ 4422; a; b; c ];;
+        [ 0x00000146l; word_of_id a; word_of_id b; word_of_id c;
+          word_of_id d; word_of_id e; word_of_id f ]
+    | `OpTypeNamedBarrier a -> [ 0x00000147l; word_of_id a ]
+    | `OpNamedBarrierInitialize (a, b, c) ->
+        [ 0x00000148l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpMemoryNamedBarrier (a, b, c) ->
+        [ 0x00000149l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpModuleProcessed a -> [ 0x0000014al ] @ (words_of_string a)
+    | `OpSubgroupBallotKHR (a, b, c) ->
+        [ 0x00001145l; word_of_id a; word_of_id b; word_of_id c ]
+    | `OpSubgroupFirstInvocationKHR (a, b, c) ->
+        [ 0x00001146l; word_of_id a; word_of_id b; word_of_id c ];;
