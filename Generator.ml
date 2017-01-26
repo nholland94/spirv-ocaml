@@ -444,7 +444,7 @@ let concat_words_exps words_exps =
     | _   -> Util.reduce Templates.concat_ls_exps ls
 
 let build_words_exp_of_instruction instruction operand_names =
-  let code_exp = Templates.ex_int @@ (Printf.sprintf "0x%08xl" instruction.instruction_code) in
+  let code_exp = Templates.ex_int @@ (Printf.sprintf "0x%04xl" instruction.instruction_code) in
   let operand_bindings = List.map Templates.ex_id_lid operand_names in
   let operand_words_exps = List.map words_exp_of_operand @@ List.combine instruction.instruction_operands operand_bindings in
   let words_exps = (Scalar, code_exp) :: operand_words_exps in
