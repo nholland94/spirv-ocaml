@@ -7,13 +7,13 @@ SpirV.ml: Generator.byte
 	./Generator.byte > SpirV.ml
 
 SpirV.mli: SpirV.ml
-	ocamlc -i SpirV.ml > SpirV.mli
+	ocamlfind ocamlc -package batteries -i SpirV.ml > SpirV.mli
 
 SpirV.cmi: SpirV.mli
-	ocamlc -c SpirV.mli
+	ocamlfind ocamlc -package batteries -c SpirV.mli
 
 SpirV.cmo: SpirV.ml
-	ocamlc -c SpirV.ml
+	ocamlfind ocamlc -package batteries -c SpirV.ml
 
 clean:
 	rm -f *.cmi *.cmx *.cmo *.o Generator.byte SpirV.ml SpirV.mli

@@ -15,25 +15,28 @@ type spv_type =
   | LiteralSpecConstantOpInteger
   | LiteralString
   | Composite of spv_type list
-
-type spv_enumerant =
+and spv_enumerant_parameter =
+  { parameter_kind_raw_name: string;
+    parameter_kind_name: string;
+    parameter_name: string option;
+    parameter_kind: spv_kind option }
+and spv_enumerant =
   { enumerant_name: string;
     enumerant_value: string;
     enumerant_capabilities: string list;
-    enumerant_parameters: (string * string option) list }
-
-type spv_kind = 
+    enumerant_parameters: spv_enumerant_parameter list }
+and spv_enum_category = Bit | Value
+and spv_enum_parameterization = NonParameterized | Parameterized
+and spv_enum_type = spv_enum_category * spv_enum_parameterization
+and spv_kind = 
   | Type of string * string * spv_type
-  | Enum of string * string * spv_enumerant list
-
-type spv_operand_quantifier = Optional | Variadic
-
-type spv_operand =
+  | Enum of string * string * spv_enum_type * spv_enumerant list
+and spv_operand_quantifier = Optional | Variadic
+and spv_operand =
   { operand_kind: spv_kind;
     operand_name: string option;
     quantifier: spv_operand_quantifier option }
-
-type spv_instruction =
+and spv_instruction =
   { instruction_name: string;
     instruction_code: int;
     instruction_operands: spv_operand list;
@@ -59,13 +62,13 @@ module Util = struct
     List.map lower_alpha_of_int (iota n)
 
   let ocaml_name_of_kind = function
-    | Enum (_, n, _) -> n
+    | Enum (_, n, _, _) -> n
     | Type (_, n, _) -> n
 
   let rec filter_kinds = function
-    | Enum (_, n, e) :: t ->
+    | Enum (_, n, ty, e) :: t ->
         let (enums, types) = filter_kinds t in
-        ((n, e) :: enums, types)
+        ((n, ty, e) :: enums, types)
     | Type (_, n, k) :: t ->
         let (enums, types) = filter_kinds t in
         (enums, (n, k) :: types)
@@ -130,7 +133,7 @@ module Parsing = struct
       name
 
   let rec lookup_kind_by_raw_name raw_name = function
-    | (Enum (name, _, _) as h) :: t
+    | (Enum (name, _, _, _) as h) :: t
     | (Type (name, _, _) as h) :: t ->
         if name = raw_name then
           h
@@ -167,7 +170,10 @@ module Parsing = struct
     let raw_kind_name = to_string @@ member "kind" obj in
     let kind_name = format_and_escape_kind_name raw_kind_name in
     let parameter_name = opt_member to_string "name" obj in
-    (kind_name, parameter_name)
+    { parameter_kind_raw_name = raw_kind_name;
+      parameter_kind_name = kind_name;
+      parameter_name = parameter_name;
+      parameter_kind = None }
 
   let destruct_enumerant enum_type_name value_fn obj =
     let raw_name = to_string @@ member "enumerant" obj in
@@ -195,18 +201,51 @@ module Parsing = struct
       List.map cast_spv_kind kind_names
     in
 
+    let enumerant_has_parameters { enumerant_parameters = p } =
+      match p with
+        | [] -> false
+        | _  -> true
+    in
+
+    let make_enum ty fn =
+      let enumerants = process_enumerants fn in
+      let parameterization =
+        if List.for_all ((not) <=< enumerant_has_parameters) enumerants
+          then NonParameterized else Parameterized
+      in
+      Enum (raw_kind_name, kind_name, (Bit, parameterization), enumerants)
+    in
+
     match to_string @@ member "category" obj with
-      | "BitEnum"   -> Enum (raw_kind_name, kind_name, process_enumerants to_string)
-      | "ValueEnum" -> Enum (raw_kind_name, kind_name, process_enumerants (string_of_int <=< to_int))
+      | "BitEnum"   -> make_enum Bit to_string
+      | "ValueEnum" -> make_enum Value (string_of_int <=< to_int)
       | "Id"        -> Type (raw_kind_name, kind_name, Id)
       | "Literal"   -> Type (raw_kind_name, kind_name, cast_spv_kind raw_kind_name)
       | "Composite" -> Type (raw_kind_name, kind_name, Composite (process_bases ()))
       | _           -> failwith ("unhandled kind category: " ^ raw_kind_name)
 
+  let wire_enum_parameters kinds =
+    let replace_parameter param =
+      let kind = lookup_kind_by_raw_name param.parameter_kind_raw_name kinds in
+      { param with parameter_kind = Some kind }
+    in
+    let replace_enumerant enumerant =
+      let parameters = List.map replace_parameter enumerant.enumerant_parameters in
+      { enumerant with enumerant_parameters = parameters }
+    in
+    let conv_enum = function
+      | Enum (rn, n, (ty, Parameterized), enumerants) ->
+          let enumerants = List.map replace_enumerant enumerants in
+          Enum (rn, n, (ty, Parameterized), enumerants)
+      | _ as kind ->
+          kind
+    in
+    List.map conv_enum kinds
+
   let parse json =
     let kind_objs = to_list @@ member "operand_kinds" json in
     let instruction_objs = to_list @@ member "instructions" json in
-    let spv_kinds = List.map destruct_kind kind_objs in
+    let spv_kinds = wire_enum_parameters @@ List.map destruct_kind kind_objs in
     let spv_instructions = List.map (destruct_instruction spv_kinds) instruction_objs in
     (spv_kinds, spv_instructions)
 end
@@ -347,7 +386,7 @@ end
 let rec ocaml_types_of_spv_type = function
   | Id                            -> ["id"]
   | LiteralInteger                -> ["int32"]
-  | LiteralContextDependentNumber -> ["big_int"]
+  | LiteralContextDependentNumber -> ["big_int_or_float"]
   | LiteralExtInstInteger
   | LiteralSpecConstantOpInteger  -> ["int"]
   | LiteralString                 -> ["string"]
@@ -358,8 +397,16 @@ let build_kind_typedef (name, t) =
   let tuple = Templates.type_sta_tuple_of_ls @@ List.map Templates.ty_id_lid type_name in
   Templates.typedef name tuple
 
-let build_enum_typedef (name, enumerants) =
-  let convert_variant enum = (enum.enumerant_name, None) in
+let build_enum_typedef (name, _, enumerants) =
+  let parameters_ast params =
+    let kind_name_of_parameter p = p.parameter_kind_name in
+    Templates.type_tuple_of_ls @@ List.map (Templates.ty_id_lid <=< kind_name_of_parameter) params
+  in
+  let convert_parameters = function
+    | []     -> None
+    | _ as p -> Some (parameters_ast p)
+  in
+  let convert_variant enum = (enum.enumerant_name, convert_parameters enum.enumerant_parameters) in
   let variants = Templates.variants @@ List.map convert_variant enumerants in
   Templates.typedef name variants
 
@@ -388,38 +435,40 @@ type list_or_sca = List | Scalar
 type words_exp = list_or_sca * expr
 
 (* TODO: add missing cases *)
-let exp_type_of_operand_kind = function
+let exp_type_of_kind = function
   | Type (_, _, LiteralContextDependentNumber)
   | Type (_, _, LiteralExtInstInteger)
   | Type (_, _, LiteralSpecConstantOpInteger)
   | Type (_, _, LiteralString)
-  | Type (_, _, Composite _)                   -> List
+  | Type (_, _, Composite _)
+  | Enum (_, _, (_, Parameterized), _)         -> List
   | _                                          -> Scalar
 
 (* This function currently makes some assumptions about how the one-off kinds are used:
  *   assumption 1: operands are named 'a' - 'z' (currently true in the compiler)
  *   assumption 2: LiteralContextDependentNumber is only in instructions which have a result type as the first operand
  *)
-let conversion_fn_of_operand_kind = function
+let conversion_fn_of_kind = function
   | Type (_, _, Id)                            -> <:expr< word_of_id >>
   | Type (_, _, LiteralInteger)                -> <:expr< word_of_int >>
-  | Type (_, _, LiteralContextDependentNumber) -> <:expr< words_of_sized_int (lookup_size a) >>
+  | Type (_, _, LiteralContextDependentNumber) -> <:expr< words_of_context_dependent_number (lookup_size a) >>
   | Type (_, _, LiteralExtInstInteger)         -> <:expr< todo >>
   | Type (_, _, LiteralSpecConstantOpInteger)  -> <:expr< todo >>
   | Type (_, _, LiteralString)                 -> <:expr< words_of_string >>
-  | Type (_, name, Composite _)                -> Templates.ex_id_lid @@ "words_of_" ^ name
-  | Enum (_, name, _)                          -> Templates.ex_id_lid @@ "value_of_" ^ name
+  | Type (_, name, Composite _)
+  | Enum (_, name, (_, Parameterized),  _)     -> Templates.ex_id_lid @@ "words_of_" ^ name
+  | Enum (_, name, (_, NonParameterized),  _)  -> Templates.ex_id_lid @@ "word_of_" ^ name
 
 let words_exp_of_operand (op, binding) =
   let kind = op.operand_kind in
-  let conversion_fn = conversion_fn_of_operand_kind kind in
+  let conversion_fn = conversion_fn_of_kind kind in
   match op.quantifier with
     | Some Optional ->
         (List, <:expr< list_of_option (apply_option $conversion_fn$ $binding$) >>)
     | Some Variadic ->
         (List, <:expr< List.map $conversion_fn$ $binding$ >>)
     | None          ->
-        (exp_type_of_operand_kind kind, <:expr< $conversion_fn$ $binding$ >>)
+        (exp_type_of_kind kind, <:expr< $conversion_fn$ $binding$ >>)
 
 let concat_words_exps words_exps =
   let empty_ls_exp = Templates.ex_id_uid "[]" in
@@ -480,12 +529,44 @@ let build_words_of_op_fn instructions =
       match op with $patterns$
   >>
 
-let build_enum_value_fns (name, enumerants) =
-  let match_case_of_enumerant { enumerant_name = name; enumerant_value = value } =
-    ((name, []), Templates.ex_int (value ^ "l"))
+let words_exp_of_enumerant_parameter (param, binding) =
+  match param.parameter_kind with
+    | None      -> failwith "enumerant parameter has unkown kind"
+    | Some kind ->
+        let conversion_fn = conversion_fn_of_kind kind in
+        (exp_type_of_kind kind, <:expr< $conversion_fn$ $binding$ >>)
+
+let build_words_exp_of_parameterized_enumerant enumerant parameter_names =
+  let value_exp = Templates.ex_int (enumerant.enumerant_value ^ "l") in
+  let parameter_bindings = List.map Templates.ex_id_lid parameter_names in
+  let parameter_words_exps = List.map words_exp_of_enumerant_parameter @@ List.combine enumerant.enumerant_parameters parameter_bindings in
+  let words_exps = (Scalar, value_exp) :: parameter_words_exps in
+  concat_words_exps words_exps
+
+let build_enum_value_fns (name, (ty, parameterization), enumerants) =
+  let match_case_of_enumerant enum =
+    let
+      { enumerant_name = name;
+        enumerant_value = value;
+        enumerant_parameters = params }
+          = enum
+    in
+    let value_exp = Templates.ex_int (value ^ "l") in
+    match (parameterization, params) with
+      | (NonParameterized, [])  -> ((name, []), value_exp)
+      | (Parameterized, [])     -> ((name, []), Templates.ls_exp [value_exp])
+      | (Parameterized, params) ->
+          let param_names = Util.generate_names (List.length params) in
+          let word_exps = build_words_exp_of_parameterized_enumerant enum param_names in
+          ((name, param_names), word_exps)
+      | _                       -> failwith "impossible case"
   in
 
-  let fn_name = "value_of_" ^ name in
+  let fn_name = match parameterization with
+    | NonParameterized -> "word_of_" ^ name
+    | Parameterized    -> "words_of_" ^ name
+  in
+
   let name_id = Templates.ty_id_lid name in
   let fn_name_id = Templates.pa_id_lid fn_name in
   let patterns = Templates.match_cases Templates.Variant @@ List.map match_case_of_enumerant enumerants in
@@ -497,7 +578,7 @@ let build_enum_value_fns (name, enumerants) =
 
 module StaticElements = struct
   let open_definitions = [
-    <:str_item< open Big_int >>
+    <:str_item< open Batteries >>
   ]
 
   let module_definitions = [
@@ -510,7 +591,9 @@ module StaticElements = struct
 
   let type_definitions = [
     <:str_item< type id = int32 >>;
-    <:str_item< type word = int32 >>
+    <:str_item< type word = int32 >>;
+    <:str_item< type big_int = Big_int.big_int >>;
+    <:str_item< type big_int_or_float = BigInt of big_int | Float of float >>
   ]
 
   (* TODO: generate these *)
@@ -519,7 +602,7 @@ module StaticElements = struct
       let words_of_pair_literal_integer_id_ref = fun (n, i) -> [word_of_int n; word_of_id i]
     >>;
     <:str_item<
-      let words_of_pair_id_ref__literal_integer = fun (i, n) -> [word_of_id i; word_of_int n]
+      let words_of_pair_id_ref_literal_integer = fun (i, n) -> [word_of_id i; word_of_int n]
     >>;
     <:str_item<
       let words_of_pair_id_ref_id_ref = fun (a, b) -> [word_of_id a; word_of_id b]
@@ -537,6 +620,34 @@ module StaticElements = struct
           failwith "spirv ids must be positive"
         else
           id
+    >>;
+    <:str_item<
+      let word_of_float = fun (f : float) ->
+        let open IO in
+        let buf = output_string () in
+        write_float buf f;
+        let str = close_out buf in
+        let rec write_to_int32 = fun n acc ls ->
+          match ls with
+            | h :: t ->
+                let value = Int32.of_int @@ Char.code h in
+                let acc = Int32.logor acc (Int32.shift_left value (8 * n)) in
+                write_to_int32 (n - 1) acc t
+            | []     -> acc
+        in
+        write_to_int32 3 0l (String.to_list str) 
+    >>;
+    <:str_item<
+      let words_of_context_dependent_number = fun (size : int) (value : big_int_or_float) ->
+        let rec make_ls = fun n el ->
+          if n = 0 then [] else el :: make_ls (n - 1) el
+        in
+        let words_of_sized_float = fun f ->
+          word_of_float f :: make_ls (min (size - 32) 0 / 32) 0l
+        in
+        match value with
+          | BigInt n -> words_of_sized_big_int n
+          | Float f  -> words_of_sized_float f
     >>;
     <:str_item<
       let words_of_string = fun (str : string) ->
@@ -558,12 +669,33 @@ module StaticElements = struct
         Array.to_list buffer
     >>
   ]
+
+  let interfaces = [
+    <:str_item<
+      let compile_to_words = fun ops ->
+        let rec loop = fun map ls ->
+          match ls with
+            | []     -> (map, [])
+            | op :: t ->
+                let (map, words) = words_of_op map op in
+                words @ loop map t
+        in
+        loop IdMap.empty ops
+    >>
+  ]
 end
+
+(* this is a dumb hack to fix the order of spirv.core.grammar.json *)
+let defer_decoration_enum enums =
+  let is_decoration (n, _, _) = (n = "decoration") in
+  let decoration_def = List.find is_decoration enums in
+  List.filter ((not) <=< is_decoration) enums @ [decoration_def]
 
 let generate_code (spv_kinds, spv_instructions) =
   let output = Printers.OCaml.print_implem in
   (* let type_map = collect_type_map spv_kinds in *)
   let (enums, types) = Util.filter_kinds spv_kinds in
+  let enums = defer_decoration_enum enums in
 
   List.iter output StaticElements.open_definitions;
   List.iter output StaticElements.module_definitions;
@@ -576,10 +708,11 @@ let generate_code (spv_kinds, spv_instructions) =
   output @@ build_op_typedef spv_instructions;
 
   (* functions *)
-  List.iter output @@ List.map build_enum_value_fns enums;
   List.iter output StaticElements.conversion_functions;
   List.iter output StaticElements.lazy_definitions;
-  output @@ build_words_of_op_fn spv_instructions
+  List.iter output @@ List.map build_enum_value_fns enums;
+  output @@ build_words_of_op_fn spv_instructions;
+  List.iter output StaticElements.interfaces
 
 let () =
   let in_ch = open_in "spirv.core.grammar.json" in

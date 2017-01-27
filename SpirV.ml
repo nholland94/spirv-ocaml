@@ -1,8 +1,10 @@
-open Big_int;;
+open Batteries;;
 module IdMap = Map.Make(Int32);;
 exception Id_not_found of Int32.t;;
 type id = int32;;
 type word = int32;;
+type big_int = Big_int.big_int;;
+type big_int_or_float = | BigInt of big_int | Float of float;;
 type id_result_type = id;;
 type id_result = id;;
 type id_memory_semantics = id;;
@@ -10,7 +12,7 @@ type id_scope = id;;
 type id_ref = id;;
 type literal_integer = int32;;
 type literal_string = string;;
-type literal_context_dependent_number = big_int;;
+type literal_context_dependent_number = big_int_or_float;;
 type literal_ext_inst_integer = int;;
 type literal_spec_constant_op_integer = int;;
 type pair_literal_integer_id_ref = (int32 * id);;
@@ -18,14 +20,14 @@ type pair_id_ref_literal_integer = (id * int32);;
 type pair_id_ref_id_ref = (id * id);;
 type image_operands =
   None
-  | Bias
-  | Lod
-  | Grad
-  | ConstOffset
-  | Offset
-  | ConstOffsets
-  | Sample
-  | MinLod;;
+  | Bias of id_ref
+  | Lod of id_ref
+  | Grad of id_ref * id_ref
+  | ConstOffset of id_ref
+  | Offset of id_ref
+  | ConstOffsets of id_ref
+  | Sample of id_ref
+  | MinLod of id_ref;;
 type f_p_fast_math_mode = None | NotNaN | NotInf | NSZ | AllowRecip | Fast;;
 type selection_control = None | Flatten | DontFlatten;;
 type loop_control =
@@ -33,7 +35,7 @@ type loop_control =
   | Unroll
   | DontUnroll
   | DependencyInfinite
-  | DependencyLength;;
+  | DependencyLength of literal_integer;;
 type function_control = None | Inline | DontInline | Pure | Const;;
 type memory_semantics =
   Relaxed
@@ -48,7 +50,11 @@ type memory_semantics =
   | CrossWorkgroupMemory
   | AtomicCounterMemory
   | ImageMemory;;
-type memory_access = None | Volatile | Aligned | Nontemporal;;
+type memory_access =
+  None
+  | Volatile
+  | Aligned of literal_integer
+  | Nontemporal;;
 type kernel_profiling_info = None | CmdExecTime;;
 type source_language = Unknown | ESSL | GLSL | OpenCL_C | OpenCL_CPP;;
 type execution_model =
@@ -62,7 +68,7 @@ type execution_model =
 type addressing_model = Logical | Physical32 | Physical64;;
 type memory_model = Simple | GLSL450 | OpenCL;;
 type execution_mode =
-  Invocations
+  Invocations of literal_integer
   | SpacingEqual
   | SpacingFractionalEven
   | SpacingFractionalOdd
@@ -78,8 +84,8 @@ type execution_mode =
   | DepthGreater
   | DepthLess
   | DepthUnchanged
-  | LocalSize
-  | LocalSizeHint
+  | LocalSize of literal_integer * literal_integer * literal_integer
+  | LocalSizeHint of literal_integer * literal_integer * literal_integer
   | InputPoints
   | InputLines
   | InputLinesAdjacency
@@ -87,16 +93,16 @@ type execution_mode =
   | InputTrianglesAdjacency
   | Quads
   | Isolines
-  | OutputVertices
+  | OutputVertices of literal_integer
   | OutputPoints
   | OutputLineStrip
   | OutputTriangleStrip
-  | VecTypeHint
+  | VecTypeHint of literal_integer
   | ContractionOff
   | Initializer
   | Finalizer
-  | SubgroupSize
-  | SubgroupsPerWorkgroup;;
+  | SubgroupSize of literal_integer
+  | SubgroupsPerWorkgroup of literal_integer;;
 type storage_class =
   UniformConstant
   | Input
@@ -210,51 +216,6 @@ type function_parameter_attribute =
   | NoCapture
   | NoWrite
   | NoReadWrite;;
-type decoration =
-  RelaxedPrecision
-  | SpecId
-  | Block
-  | BufferBlock
-  | RowMajor
-  | ColMajor
-  | ArrayStride
-  | MatrixStride
-  | GLSLShared
-  | GLSLPacked
-  | CPacked
-  | BuiltIn
-  | NoPerspective
-  | Flat
-  | Patch
-  | Centroid
-  | Sample
-  | Invariant
-  | Restrict
-  | Aliased
-  | Volatile
-  | Constant
-  | Coherent
-  | NonWritable
-  | NonReadable
-  | Uniform
-  | SaturatedConversion
-  | Stream
-  | Location
-  | Component
-  | Index
-  | Binding
-  | DescriptorSet
-  | Offset
-  | XfbBuffer
-  | XfbStride
-  | FuncParamAttr
-  | FPRoundingMode
-  | FPFastMathMode
-  | LinkageAttributes
-  | NoContraction
-  | InputAttachmentIndex
-  | Alignment
-  | MaxByteOffset;;
 type built_in =
   Position
   | PointSize
@@ -370,6 +331,51 @@ type capability =
   | PipeStorage
   | SubgroupBallotKHR
   | DrawParameters;;
+type decoration =
+  RelaxedPrecision
+  | SpecId of literal_integer
+  | Block
+  | BufferBlock
+  | RowMajor
+  | ColMajor
+  | ArrayStride of literal_integer
+  | MatrixStride of literal_integer
+  | GLSLShared
+  | GLSLPacked
+  | CPacked
+  | BuiltIn of built_in
+  | NoPerspective
+  | Flat
+  | Patch
+  | Centroid
+  | Sample
+  | Invariant
+  | Restrict
+  | Aliased
+  | Volatile
+  | Constant
+  | Coherent
+  | NonWritable
+  | NonReadable
+  | Uniform
+  | SaturatedConversion
+  | Stream of literal_integer
+  | Location of literal_integer
+  | Component of literal_integer
+  | Index of literal_integer
+  | Binding of literal_integer
+  | DescriptorSet of literal_integer
+  | Offset of literal_integer
+  | XfbBuffer of literal_integer
+  | XfbStride of literal_integer
+  | FuncParamAttr of function_parameter_attribute
+  | FPRoundingMode of f_p_rounding_mode
+  | FPFastMathMode of f_p_fast_math_mode
+  | LinkageAttributes of literal_string * linkage_type
+  | NoContraction
+  | InputAttachmentIndex of literal_integer
+  | Alignment of literal_integer
+  | MaxByteOffset of literal_integer;;
 type op =
   [
     | `OpNop
@@ -790,18 +796,64 @@ type op =
     | `OpSubgroupBallotKHR of id_result_type * id_result * id_ref
     | `OpSubgroupFirstInvocationKHR of id_result_type * id_result * id_ref
   ];;
-let value_of_image_operands (v : image_operands) =
+let word_of_int (i : int32) = i;;
+let word_of_id (id : id) =
+  if id < 0l then failwith "spirv ids must be positive" else id;;
+let word_of_float (f : float) = let open IO
+  in
+    let buf = output_string ()
+    in
+      (write_float buf f;
+       let str = close_out buf in
+       let rec write_to_int32 n acc ls =
+         match ls with
+         | h :: t ->
+             let value = Int32.of_int @@ (Char.code h) in
+             let acc = Int32.logor acc (Int32.shift_left value (8 * n))
+             in write_to_int32 (n - 1) acc t
+         | [] -> acc
+       in write_to_int32 3 0l (String.to_list str));;
+let words_of_context_dependent_number (size : int) (value : big_int_or_float)
+                                      =
+  let rec make_ls n el = if n = 0 then [] else el :: (make_ls (n - 1) el) in
+  let words_of_sized_float f =
+    (word_of_float f) :: (make_ls ((min (size - 32) 0) / 32) 0l)
+  in
+    match value with
+    | BigInt n -> words_of_sized_big_int n
+    | Float f -> words_of_sized_float f;;
+let words_of_string (str : string) =
+  let len = String.length str in
+  let word_count = len / 4 in
+  let buffer = Array.make word_count 0l in
+  let add_char_to_word ch offset word =
+    Int32.logor word
+      (Int32.shift_left (Int32.of_int @@ (Char.code ch)) (offset * 4)) in
+  let rec add_char_to_buffer i =
+    if i = len
+    then ()
+    else
+      (buffer.(i / 4) <-
+         add_char_to_word (String.get str i) (i mod 4) buffer.(i / 4);
+       add_char_to_buffer (i + 1))
+  in (add_char_to_buffer 0; Array.to_list buffer);;
+let words_of_pair_literal_integer_id_ref (n, i) =
+  [ word_of_int n; word_of_id i ];;
+let words_of_pair_id_ref_literal_integer (i, n) =
+  [ word_of_id i; word_of_int n ];;
+let words_of_pair_id_ref_id_ref (a, b) = [ word_of_id a; word_of_id b ];;
+let words_of_image_operands (v : image_operands) =
   match v with
-  | None -> 0x0000l
-  | Bias -> 0x0001l
-  | Lod -> 0x0002l
-  | Grad -> 0x0004l
-  | ConstOffset -> 0x0008l
-  | Offset -> 0x0010l
-  | ConstOffsets -> 0x0020l
-  | Sample -> 0x0040l
-  | MinLod -> 0x0080l;;
-let value_of_f_p_fast_math_mode (v : f_p_fast_math_mode) =
+  | None -> [ 0x0000l ]
+  | Bias a -> [ 0x0001l; word_of_id a ]
+  | Lod a -> [ 0x0002l; word_of_id a ]
+  | Grad (a, b) -> [ 0x0004l; word_of_id a; word_of_id b ]
+  | ConstOffset a -> [ 0x0008l; word_of_id a ]
+  | Offset a -> [ 0x0010l; word_of_id a ]
+  | ConstOffsets a -> [ 0x0020l; word_of_id a ]
+  | Sample a -> [ 0x0040l; word_of_id a ]
+  | MinLod a -> [ 0x0080l; word_of_id a ];;
+let word_of_f_p_fast_math_mode (v : f_p_fast_math_mode) =
   match v with
   | None -> 0x0000l
   | NotNaN -> 0x0001l
@@ -809,26 +861,26 @@ let value_of_f_p_fast_math_mode (v : f_p_fast_math_mode) =
   | NSZ -> 0x0004l
   | AllowRecip -> 0x0008l
   | Fast -> 0x0010l;;
-let value_of_selection_control (v : selection_control) =
+let word_of_selection_control (v : selection_control) =
   match v with
   | None -> 0x0000l
   | Flatten -> 0x0001l
   | DontFlatten -> 0x0002l;;
-let value_of_loop_control (v : loop_control) =
+let words_of_loop_control (v : loop_control) =
   match v with
-  | None -> 0x0000l
-  | Unroll -> 0x0001l
-  | DontUnroll -> 0x0002l
-  | DependencyInfinite -> 0x0004l
-  | DependencyLength -> 0x0008l;;
-let value_of_function_control (v : function_control) =
+  | None -> [ 0x0000l ]
+  | Unroll -> [ 0x0001l ]
+  | DontUnroll -> [ 0x0002l ]
+  | DependencyInfinite -> [ 0x0004l ]
+  | DependencyLength a -> [ 0x0008l; word_of_int a ];;
+let word_of_function_control (v : function_control) =
   match v with
   | None -> 0x0000l
   | Inline -> 0x0001l
   | DontInline -> 0x0002l
   | Pure -> 0x0004l
   | Const -> 0x0008l;;
-let value_of_memory_semantics (v : memory_semantics) =
+let word_of_memory_semantics (v : memory_semantics) =
   match v with
   | Relaxed -> 0x0000l
   | None -> 0x0000l
@@ -842,22 +894,22 @@ let value_of_memory_semantics (v : memory_semantics) =
   | CrossWorkgroupMemory -> 0x0200l
   | AtomicCounterMemory -> 0x0400l
   | ImageMemory -> 0x0800l;;
-let value_of_memory_access (v : memory_access) =
+let words_of_memory_access (v : memory_access) =
   match v with
-  | None -> 0x0000l
-  | Volatile -> 0x0001l
-  | Aligned -> 0x0002l
-  | Nontemporal -> 0x0004l;;
-let value_of_kernel_profiling_info (v : kernel_profiling_info) =
+  | None -> [ 0x0000l ]
+  | Volatile -> [ 0x0001l ]
+  | Aligned a -> [ 0x0002l; word_of_int a ]
+  | Nontemporal -> [ 0x0004l ];;
+let word_of_kernel_profiling_info (v : kernel_profiling_info) =
   match v with | None -> 0x0000l | CmdExecTime -> 0x0001l;;
-let value_of_source_language (v : source_language) =
+let word_of_source_language (v : source_language) =
   match v with
   | Unknown -> 0l
   | ESSL -> 1l
   | GLSL -> 2l
   | OpenCL_C -> 3l
   | OpenCL_CPP -> 4l;;
-let value_of_execution_model (v : execution_model) =
+let word_of_execution_model (v : execution_model) =
   match v with
   | Vertex -> 0l
   | TessellationControl -> 1l
@@ -866,48 +918,50 @@ let value_of_execution_model (v : execution_model) =
   | Fragment -> 4l
   | GLCompute -> 5l
   | Kernel -> 6l;;
-let value_of_addressing_model (v : addressing_model) =
+let word_of_addressing_model (v : addressing_model) =
   match v with | Logical -> 0l | Physical32 -> 1l | Physical64 -> 2l;;
-let value_of_memory_model (v : memory_model) =
+let word_of_memory_model (v : memory_model) =
   match v with | Simple -> 0l | GLSL450 -> 1l | OpenCL -> 2l;;
-let value_of_execution_mode (v : execution_mode) =
+let words_of_execution_mode (v : execution_mode) =
   match v with
-  | Invocations -> 0l
-  | SpacingEqual -> 1l
-  | SpacingFractionalEven -> 2l
-  | SpacingFractionalOdd -> 3l
-  | VertexOrderCw -> 4l
-  | VertexOrderCcw -> 5l
-  | PixelCenterInteger -> 6l
-  | OriginUpperLeft -> 7l
-  | OriginLowerLeft -> 8l
-  | EarlyFragmentTests -> 9l
-  | PointMode -> 10l
-  | Xfb -> 11l
-  | DepthReplacing -> 12l
-  | DepthGreater -> 14l
-  | DepthLess -> 15l
-  | DepthUnchanged -> 16l
-  | LocalSize -> 17l
-  | LocalSizeHint -> 18l
-  | InputPoints -> 19l
-  | InputLines -> 20l
-  | InputLinesAdjacency -> 21l
-  | Triangles -> 22l
-  | InputTrianglesAdjacency -> 23l
-  | Quads -> 24l
-  | Isolines -> 25l
-  | OutputVertices -> 26l
-  | OutputPoints -> 27l
-  | OutputLineStrip -> 28l
-  | OutputTriangleStrip -> 29l
-  | VecTypeHint -> 30l
-  | ContractionOff -> 31l
-  | Initializer -> 33l
-  | Finalizer -> 34l
-  | SubgroupSize -> 35l
-  | SubgroupsPerWorkgroup -> 36l;;
-let value_of_storage_class (v : storage_class) =
+  | Invocations a -> [ 0l; word_of_int a ]
+  | SpacingEqual -> [ 1l ]
+  | SpacingFractionalEven -> [ 2l ]
+  | SpacingFractionalOdd -> [ 3l ]
+  | VertexOrderCw -> [ 4l ]
+  | VertexOrderCcw -> [ 5l ]
+  | PixelCenterInteger -> [ 6l ]
+  | OriginUpperLeft -> [ 7l ]
+  | OriginLowerLeft -> [ 8l ]
+  | EarlyFragmentTests -> [ 9l ]
+  | PointMode -> [ 10l ]
+  | Xfb -> [ 11l ]
+  | DepthReplacing -> [ 12l ]
+  | DepthGreater -> [ 14l ]
+  | DepthLess -> [ 15l ]
+  | DepthUnchanged -> [ 16l ]
+  | LocalSize (a, b, c) ->
+      [ 17l; word_of_int a; word_of_int b; word_of_int c ]
+  | LocalSizeHint (a, b, c) ->
+      [ 18l; word_of_int a; word_of_int b; word_of_int c ]
+  | InputPoints -> [ 19l ]
+  | InputLines -> [ 20l ]
+  | InputLinesAdjacency -> [ 21l ]
+  | Triangles -> [ 22l ]
+  | InputTrianglesAdjacency -> [ 23l ]
+  | Quads -> [ 24l ]
+  | Isolines -> [ 25l ]
+  | OutputVertices a -> [ 26l; word_of_int a ]
+  | OutputPoints -> [ 27l ]
+  | OutputLineStrip -> [ 28l ]
+  | OutputTriangleStrip -> [ 29l ]
+  | VecTypeHint a -> [ 30l; word_of_int a ]
+  | ContractionOff -> [ 31l ]
+  | Initializer -> [ 33l ]
+  | Finalizer -> [ 34l ]
+  | SubgroupSize a -> [ 35l; word_of_int a ]
+  | SubgroupsPerWorkgroup a -> [ 36l; word_of_int a ];;
+let word_of_storage_class (v : storage_class) =
   match v with
   | UniformConstant -> 0l
   | Input -> 1l
@@ -921,7 +975,7 @@ let value_of_storage_class (v : storage_class) =
   | PushConstant -> 9l
   | AtomicCounter -> 10l
   | Image -> 11l;;
-let value_of_dim (v : dim) =
+let word_of_dim (v : dim) =
   match v with
   | Dim1D -> 0l
   | Dim2D -> 1l
@@ -930,16 +984,16 @@ let value_of_dim (v : dim) =
   | Rect -> 4l
   | Buffer -> 5l
   | SubpassData -> 6l;;
-let value_of_sampler_addressing_mode (v : sampler_addressing_mode) =
+let word_of_sampler_addressing_mode (v : sampler_addressing_mode) =
   match v with
   | None -> 0l
   | ClampToEdge -> 1l
   | Clamp -> 2l
   | Repeat -> 3l
   | RepeatMirrored -> 4l;;
-let value_of_sampler_filter_mode (v : sampler_filter_mode) =
+let word_of_sampler_filter_mode (v : sampler_filter_mode) =
   match v with | Nearest -> 0l | Linear -> 1l;;
-let value_of_image_format (v : image_format) =
+let word_of_image_format (v : image_format) =
   match v with
   | Unknown -> 0l
   | Rgba32f -> 1l
@@ -981,7 +1035,7 @@ let value_of_image_format (v : image_format) =
   | Rg8ui -> 37l
   | R16ui -> 38l
   | R8ui -> 39l;;
-let value_of_image_channel_order (v : image_channel_order) =
+let word_of_image_channel_order (v : image_channel_order) =
   match v with
   | R -> 0l
   | A -> 1l
@@ -1003,7 +1057,7 @@ let value_of_image_channel_order (v : image_channel_order) =
   | SRGBA -> 17l
   | SBGRA -> 18l
   | ABGR -> 19l;;
-let value_of_image_channel_data_type (v : image_channel_data_type) =
+let word_of_image_channel_data_type (v : image_channel_data_type) =
   match v with
   | SnormInt8 -> 0l
   | SnormInt16 -> 1l
@@ -1022,14 +1076,13 @@ let value_of_image_channel_data_type (v : image_channel_data_type) =
   | Float -> 14l
   | UnormInt24 -> 15l
   | UnormInt101010_2 -> 16l;;
-let value_of_f_p_rounding_mode (v : f_p_rounding_mode) =
+let word_of_f_p_rounding_mode (v : f_p_rounding_mode) =
   match v with | RTE -> 0l | RTZ -> 1l | RTP -> 2l | RTN -> 3l;;
-let value_of_linkage_type (v : linkage_type) =
+let word_of_linkage_type (v : linkage_type) =
   match v with | Export -> 0l | Import -> 1l;;
-let value_of_access_qualifier (v : access_qualifier) =
+let word_of_access_qualifier (v : access_qualifier) =
   match v with | ReadOnly -> 0l | WriteOnly -> 1l | ReadWrite -> 2l;;
-let value_of_function_parameter_attribute (v : function_parameter_attribute)
-                                          =
+let word_of_function_parameter_attribute (v : function_parameter_attribute) =
   match v with
   | Zext -> 0l
   | Sext -> 1l
@@ -1039,53 +1092,7 @@ let value_of_function_parameter_attribute (v : function_parameter_attribute)
   | NoCapture -> 5l
   | NoWrite -> 6l
   | NoReadWrite -> 7l;;
-let value_of_decoration (v : decoration) =
-  match v with
-  | RelaxedPrecision -> 0l
-  | SpecId -> 1l
-  | Block -> 2l
-  | BufferBlock -> 3l
-  | RowMajor -> 4l
-  | ColMajor -> 5l
-  | ArrayStride -> 6l
-  | MatrixStride -> 7l
-  | GLSLShared -> 8l
-  | GLSLPacked -> 9l
-  | CPacked -> 10l
-  | BuiltIn -> 11l
-  | NoPerspective -> 13l
-  | Flat -> 14l
-  | Patch -> 15l
-  | Centroid -> 16l
-  | Sample -> 17l
-  | Invariant -> 18l
-  | Restrict -> 19l
-  | Aliased -> 20l
-  | Volatile -> 21l
-  | Constant -> 22l
-  | Coherent -> 23l
-  | NonWritable -> 24l
-  | NonReadable -> 25l
-  | Uniform -> 26l
-  | SaturatedConversion -> 28l
-  | Stream -> 29l
-  | Location -> 30l
-  | Component -> 31l
-  | Index -> 32l
-  | Binding -> 33l
-  | DescriptorSet -> 34l
-  | Offset -> 35l
-  | XfbBuffer -> 36l
-  | XfbStride -> 37l
-  | FuncParamAttr -> 38l
-  | FPRoundingMode -> 39l
-  | FPFastMathMode -> 40l
-  | LinkageAttributes -> 41l
-  | NoContraction -> 42l
-  | InputAttachmentIndex -> 43l
-  | Alignment -> 44l
-  | MaxByteOffset -> 45l;;
-let value_of_built_in (v : built_in) =
+let word_of_built_in (v : built_in) =
   match v with
   | Position -> 0l
   | PointSize -> 1l
@@ -1136,18 +1143,18 @@ let value_of_built_in (v : built_in) =
   | BaseVertex -> 4424l
   | BaseInstance -> 4425l
   | DrawIndex -> 4426l;;
-let value_of_scope (v : scope) =
+let word_of_scope (v : scope) =
   match v with
   | CrossDevice -> 0l
   | Device -> 1l
   | Workgroup -> 2l
   | Subgroup -> 3l
   | Invocation -> 4l;;
-let value_of_group_operation (v : group_operation) =
+let word_of_group_operation (v : group_operation) =
   match v with | Reduce -> 0l | InclusiveScan -> 1l | ExclusiveScan -> 2l;;
-let value_of_kernel_enqueue_flags (v : kernel_enqueue_flags) =
+let word_of_kernel_enqueue_flags (v : kernel_enqueue_flags) =
   match v with | NoWait -> 0l | WaitKernel -> 1l | WaitWorkGroup -> 2l;;
-let value_of_capability (v : capability) =
+let word_of_capability (v : capability) =
   match v with
   | Matrix -> 0l
   | Shader -> 1l
@@ -1210,29 +1217,53 @@ let value_of_capability (v : capability) =
   | PipeStorage -> 60l
   | SubgroupBallotKHR -> 4423l
   | DrawParameters -> 4427l;;
-let word_of_int (i : int32) = i;;
-let word_of_id (id : id) =
-  if id < 0l then failwith "spirv ids must be positive" else id;;
-let words_of_string (str : string) =
-  let len = String.length str in
-  let word_count = len / 4 in
-  let buffer = Array.make word_count 0l in
-  let add_char_to_word ch offset word =
-    Int32.logor word
-      (Int32.shift_left (Int32.of_int @@ (Char.code ch)) (offset * 4)) in
-  let rec add_char_to_buffer i =
-    if i = len
-    then ()
-    else
-      (buffer.(i / 4) <-
-         add_char_to_word (String.get str i) (i mod 4) buffer.(i / 4);
-       add_char_to_buffer (i + 1))
-  in (add_char_to_buffer 0; Array.to_list buffer);;
-let words_of_pair_literal_integer_id_ref (n, i) =
-  [ word_of_int n; word_of_id i ];;
-let words_of_pair_id_ref__literal_integer (i, n) =
-  [ word_of_id i; word_of_int n ];;
-let words_of_pair_id_ref_id_ref (a, b) = [ word_of_id a; word_of_id b ];;
+let words_of_decoration (v : decoration) =
+  match v with
+  | RelaxedPrecision -> [ 0l ]
+  | SpecId a -> [ 1l; word_of_int a ]
+  | Block -> [ 2l ]
+  | BufferBlock -> [ 3l ]
+  | RowMajor -> [ 4l ]
+  | ColMajor -> [ 5l ]
+  | ArrayStride a -> [ 6l; word_of_int a ]
+  | MatrixStride a -> [ 7l; word_of_int a ]
+  | GLSLShared -> [ 8l ]
+  | GLSLPacked -> [ 9l ]
+  | CPacked -> [ 10l ]
+  | BuiltIn a -> [ 11l; word_of_built_in a ]
+  | NoPerspective -> [ 13l ]
+  | Flat -> [ 14l ]
+  | Patch -> [ 15l ]
+  | Centroid -> [ 16l ]
+  | Sample -> [ 17l ]
+  | Invariant -> [ 18l ]
+  | Restrict -> [ 19l ]
+  | Aliased -> [ 20l ]
+  | Volatile -> [ 21l ]
+  | Constant -> [ 22l ]
+  | Coherent -> [ 23l ]
+  | NonWritable -> [ 24l ]
+  | NonReadable -> [ 25l ]
+  | Uniform -> [ 26l ]
+  | SaturatedConversion -> [ 28l ]
+  | Stream a -> [ 29l; word_of_int a ]
+  | Location a -> [ 30l; word_of_int a ]
+  | Component a -> [ 31l; word_of_int a ]
+  | Index a -> [ 32l; word_of_int a ]
+  | Binding a -> [ 33l; word_of_int a ]
+  | DescriptorSet a -> [ 34l; word_of_int a ]
+  | Offset a -> [ 35l; word_of_int a ]
+  | XfbBuffer a -> [ 36l; word_of_int a ]
+  | XfbStride a -> [ 37l; word_of_int a ]
+  | FuncParamAttr a -> [ 38l; word_of_function_parameter_attribute a ]
+  | FPRoundingMode a -> [ 39l; word_of_f_p_rounding_mode a ]
+  | FPFastMathMode a -> [ 40l; word_of_f_p_fast_math_mode a ]
+  | LinkageAttributes (a, b) ->
+      ([ 41l ] @ (words_of_string a)) @ [ word_of_linkage_type b ]
+  | NoContraction -> [ 42l ]
+  | InputAttachmentIndex a -> [ 43l; word_of_int a ]
+  | Alignment a -> [ 44l; word_of_int a ]
+  | MaxByteOffset a -> [ 45l; word_of_int a ];;
 let words_of_op (size_map : int IdMap.t) (op : op) =
   let list_of_option (opt : 'a option) =
     match opt with | Some v -> [ v ] | None -> [] in
@@ -1248,7 +1279,7 @@ let words_of_op (size_map : int IdMap.t) (op : op) =
     | `OpUndef (a, b) -> [ 0x0001l; word_of_id a; word_of_id b ]
     | `OpSourceContinued a -> [ 0x0002l ] @ (words_of_string a)
     | `OpSource (a, b, c, d) ->
-        ([ 0x0003l; value_of_source_language a; word_of_int b ] @
+        ([ 0x0003l; word_of_source_language a; word_of_int b ] @
            (list_of_option (apply_option word_of_id c)))
           @ (list_of_option (apply_option words_of_string d))
     | `OpSourceExtension a -> [ 0x0004l ] @ (words_of_string a)
@@ -1265,14 +1296,14 @@ let words_of_op (size_map : int IdMap.t) (op : op) =
         ([ 0x000cl; word_of_id a; word_of_id b; word_of_id c ] @ (todo d)) @
           (List.map word_of_id e)
     | `OpMemoryModel (a, b) ->
-        [ 0x000el; value_of_addressing_model a; value_of_memory_model b ]
+        [ 0x000el; word_of_addressing_model a; word_of_memory_model b ]
     | `OpEntryPoint (a, b, c, d) ->
-        ([ 0x000fl; value_of_execution_model a; word_of_id b ] @
+        ([ 0x000fl; word_of_execution_model a; word_of_id b ] @
            (words_of_string c))
           @ (List.map word_of_id d)
     | `OpExecutionMode (a, b) ->
-        [ 0x0010l; word_of_id a; value_of_execution_mode b ]
-    | `OpCapability a -> [ 0x0011l; value_of_capability a ]
+        [ 0x0010l; word_of_id a ] @ (words_of_execution_mode b)
+    | `OpCapability a -> [ 0x0011l; word_of_capability a ]
     | `OpTypeVoid a -> [ 0x0013l; word_of_id a ]
     | `OpTypeBool a -> [ 0x0014l; word_of_id a ]
     | `OpTypeInt (a, b, c) ->
@@ -1283,10 +1314,9 @@ let words_of_op (size_map : int IdMap.t) (op : op) =
     | `OpTypeMatrix (a, b, c) ->
         [ 0x0018l; word_of_id a; word_of_id b; word_of_int c ]
     | `OpTypeImage (a, b, c, d, e, f, g, h, i) ->
-        [ 0x0019l; word_of_id a; word_of_id b; value_of_dim c; word_of_int d;
-          word_of_int e; word_of_int f; word_of_int g;
-          value_of_image_format h ] @
-          (list_of_option (apply_option value_of_access_qualifier i))
+        [ 0x0019l; word_of_id a; word_of_id b; word_of_dim c; word_of_int d;
+          word_of_int e; word_of_int f; word_of_int g; word_of_image_format h ]
+          @ (list_of_option (apply_option word_of_access_qualifier i))
     | `OpTypeSampler a -> [ 0x001al; word_of_id a ]
     | `OpTypeSampledImage (a, b) -> [ 0x001bl; word_of_id a; word_of_id b ]
     | `OpTypeArray (a, b, c) ->
@@ -1296,7 +1326,7 @@ let words_of_op (size_map : int IdMap.t) (op : op) =
         [ 0x001el; word_of_id a ] @ (List.map word_of_id b)
     | `OpTypeOpaque (a, b) -> [ 0x001fl; word_of_id a ] @ (words_of_string b)
     | `OpTypePointer (a, b, c) ->
-        [ 0x0020l; word_of_id a; value_of_storage_class b; word_of_id c ]
+        [ 0x0020l; word_of_id a; word_of_storage_class b; word_of_id c ]
     | `OpTypeFunction (a, b, c) ->
         [ 0x0021l; word_of_id a; word_of_id b ] @ (List.map word_of_id c)
     | `OpTypeEvent a -> [ 0x0022l; word_of_id a ]
@@ -1304,32 +1334,32 @@ let words_of_op (size_map : int IdMap.t) (op : op) =
     | `OpTypeReserveId a -> [ 0x0024l; word_of_id a ]
     | `OpTypeQueue a -> [ 0x0025l; word_of_id a ]
     | `OpTypePipe (a, b) ->
-        [ 0x0026l; word_of_id a; value_of_access_qualifier b ]
+        [ 0x0026l; word_of_id a; word_of_access_qualifier b ]
     | `OpTypeForwardPointer (a, b) ->
-        [ 0x0027l; word_of_id a; value_of_storage_class b ]
+        [ 0x0027l; word_of_id a; word_of_storage_class b ]
     | `OpConstantTrue (a, b) -> [ 0x0029l; word_of_id a; word_of_id b ]
     | `OpConstantFalse (a, b) -> [ 0x002al; word_of_id a; word_of_id b ]
     | `OpConstant (a, b, c) ->
         [ 0x002bl; word_of_id a; word_of_id b ] @
-          (words_of_sized_int (lookup_size a) c)
+          (words_of_context_dependent_number (lookup_size a) c)
     | `OpConstantComposite (a, b, c) ->
         [ 0x002cl; word_of_id a; word_of_id b ] @ (List.map word_of_id c)
     | `OpConstantSampler (a, b, c, d, e) ->
         [ 0x002dl; word_of_id a; word_of_id b;
-          value_of_sampler_addressing_mode c; word_of_int d;
-          value_of_sampler_filter_mode e ]
+          word_of_sampler_addressing_mode c; word_of_int d;
+          word_of_sampler_filter_mode e ]
     | `OpConstantNull (a, b) -> [ 0x002el; word_of_id a; word_of_id b ]
     | `OpSpecConstantTrue (a, b) -> [ 0x0030l; word_of_id a; word_of_id b ]
     | `OpSpecConstantFalse (a, b) -> [ 0x0031l; word_of_id a; word_of_id b ]
     | `OpSpecConstant (a, b, c) ->
         [ 0x0032l; word_of_id a; word_of_id b ] @
-          (words_of_sized_int (lookup_size a) c)
+          (words_of_context_dependent_number (lookup_size a) c)
     | `OpSpecConstantComposite (a, b, c) ->
         [ 0x0033l; word_of_id a; word_of_id b ] @ (List.map word_of_id c)
     | `OpSpecConstantOp (a, b, c) ->
         [ 0x0034l; word_of_id a; word_of_id b ] @ (todo c)
     | `OpFunction (a, b, c, d) ->
-        [ 0x0036l; word_of_id a; word_of_id b; value_of_function_control c;
+        [ 0x0036l; word_of_id a; word_of_id b; word_of_function_control c;
           word_of_id d ]
     | `OpFunctionParameter (a, b) -> [ 0x0037l; word_of_id a; word_of_id b ]
     | `OpFunctionEnd -> [ 0x0038l ]
@@ -1337,23 +1367,23 @@ let words_of_op (size_map : int IdMap.t) (op : op) =
         [ 0x0039l; word_of_id a; word_of_id b; word_of_id c ] @
           (List.map word_of_id d)
     | `OpVariable (a, b, c, d) ->
-        [ 0x003bl; word_of_id a; word_of_id b; value_of_storage_class c ] @
+        [ 0x003bl; word_of_id a; word_of_id b; word_of_storage_class c ] @
           (list_of_option (apply_option word_of_id d))
     | `OpImageTexelPointer (a, b, c, d, e) ->
         [ 0x003cl; word_of_id a; word_of_id b; word_of_id c; word_of_id d;
           word_of_id e ]
     | `OpLoad (a, b, c, d) ->
         [ 0x003dl; word_of_id a; word_of_id b; word_of_id c ] @
-          (list_of_option (apply_option value_of_memory_access d))
+          (list_of_option (apply_option words_of_memory_access d))
     | `OpStore (a, b, c) ->
         [ 0x003el; word_of_id a; word_of_id b ] @
-          (list_of_option (apply_option value_of_memory_access c))
+          (list_of_option (apply_option words_of_memory_access c))
     | `OpCopyMemory (a, b, c) ->
         [ 0x003fl; word_of_id a; word_of_id b ] @
-          (list_of_option (apply_option value_of_memory_access c))
+          (list_of_option (apply_option words_of_memory_access c))
     | `OpCopyMemorySized (a, b, c, d) ->
         [ 0x0040l; word_of_id a; word_of_id b; word_of_id c ] @
-          (list_of_option (apply_option value_of_memory_access d))
+          (list_of_option (apply_option words_of_memory_access d))
     | `OpAccessChain (a, b, c, d) ->
         [ 0x0041l; word_of_id a; word_of_id b; word_of_id c ] @
           (List.map word_of_id d)
@@ -1370,9 +1400,10 @@ let words_of_op (size_map : int IdMap.t) (op : op) =
     | `OpInBoundsPtrAccessChain (a, b, c, d, e) ->
         [ 0x0046l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
           (List.map word_of_id e)
-    | `OpDecorate (a, b) -> [ 0x0047l; word_of_id a; value_of_decoration b ]
+    | `OpDecorate (a, b) ->
+        [ 0x0047l; word_of_id a ] @ (words_of_decoration b)
     | `OpMemberDecorate (a, b, c) ->
-        [ 0x0048l; word_of_id a; word_of_int b; value_of_decoration c ]
+        [ 0x0048l; word_of_id a; word_of_int b ] @ (words_of_decoration c)
     | `OpDecorationGroup a -> [ 0x0049l; word_of_id a ]
     | `OpGroupDecorate (a, b) ->
         [ 0x004al; word_of_id a ] @ (List.map word_of_id b)
@@ -1403,47 +1434,47 @@ let words_of_op (size_map : int IdMap.t) (op : op) =
         [ 0x0056l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ]
     | `OpImageSampleImplicitLod (a, b, c, d, e) ->
         [ 0x0057l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
-          (list_of_option (apply_option value_of_image_operands e))
+          (list_of_option (apply_option words_of_image_operands e))
     | `OpImageSampleExplicitLod (a, b, c, d, e) ->
-        [ 0x0058l; word_of_id a; word_of_id b; word_of_id c; word_of_id d;
-          value_of_image_operands e ]
+        [ 0x0058l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
+          (words_of_image_operands e)
     | `OpImageSampleDrefImplicitLod (a, b, c, d, e, f) ->
         [ 0x0059l; word_of_id a; word_of_id b; word_of_id c; word_of_id d;
           word_of_id e ] @
-          (list_of_option (apply_option value_of_image_operands f))
+          (list_of_option (apply_option words_of_image_operands f))
     | `OpImageSampleDrefExplicitLod (a, b, c, d, e, f) ->
         [ 0x005al; word_of_id a; word_of_id b; word_of_id c; word_of_id d;
-          word_of_id e; value_of_image_operands f ]
+          word_of_id e ] @ (words_of_image_operands f)
     | `OpImageSampleProjImplicitLod (a, b, c, d, e) ->
         [ 0x005bl; word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
-          (list_of_option (apply_option value_of_image_operands e))
+          (list_of_option (apply_option words_of_image_operands e))
     | `OpImageSampleProjExplicitLod (a, b, c, d, e) ->
-        [ 0x005cl; word_of_id a; word_of_id b; word_of_id c; word_of_id d;
-          value_of_image_operands e ]
+        [ 0x005cl; word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
+          (words_of_image_operands e)
     | `OpImageSampleProjDrefImplicitLod (a, b, c, d, e, f) ->
         [ 0x005dl; word_of_id a; word_of_id b; word_of_id c; word_of_id d;
           word_of_id e ] @
-          (list_of_option (apply_option value_of_image_operands f))
+          (list_of_option (apply_option words_of_image_operands f))
     | `OpImageSampleProjDrefExplicitLod (a, b, c, d, e, f) ->
         [ 0x005el; word_of_id a; word_of_id b; word_of_id c; word_of_id d;
-          word_of_id e; value_of_image_operands f ]
+          word_of_id e ] @ (words_of_image_operands f)
     | `OpImageFetch (a, b, c, d, e) ->
         [ 0x005fl; word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
-          (list_of_option (apply_option value_of_image_operands e))
+          (list_of_option (apply_option words_of_image_operands e))
     | `OpImageGather (a, b, c, d, e, f) ->
         [ 0x0060l; word_of_id a; word_of_id b; word_of_id c; word_of_id d;
           word_of_id e ] @
-          (list_of_option (apply_option value_of_image_operands f))
+          (list_of_option (apply_option words_of_image_operands f))
     | `OpImageDrefGather (a, b, c, d, e, f) ->
         [ 0x0061l; word_of_id a; word_of_id b; word_of_id c; word_of_id d;
           word_of_id e ] @
-          (list_of_option (apply_option value_of_image_operands f))
+          (list_of_option (apply_option words_of_image_operands f))
     | `OpImageRead (a, b, c, d, e) ->
         [ 0x0062l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
-          (list_of_option (apply_option value_of_image_operands e))
+          (list_of_option (apply_option words_of_image_operands e))
     | `OpImageWrite (a, b, c, d) ->
         [ 0x0063l; word_of_id a; word_of_id b; word_of_id c ] @
-          (list_of_option (apply_option value_of_image_operands d))
+          (list_of_option (apply_option words_of_image_operands d))
     | `OpImage (a, b, c) ->
         [ 0x0064l; word_of_id a; word_of_id b; word_of_id c ]
     | `OpImageQueryFormat (a, b, c) ->
@@ -1490,7 +1521,7 @@ let words_of_op (size_map : int IdMap.t) (op : op) =
         [ 0x007al; word_of_id a; word_of_id b; word_of_id c ]
     | `OpGenericCastToPtrExplicit (a, b, c, d) ->
         [ 0x007bl; word_of_id a; word_of_id b; word_of_id c;
-          value_of_storage_class d ]
+          word_of_storage_class d ]
     | `OpBitcast (a, b, c) ->
         [ 0x007cl; word_of_id a; word_of_id b; word_of_id c ]
     | `OpSNegate (a, b, c) ->
@@ -1727,9 +1758,9 @@ let words_of_op (size_map : int IdMap.t) (op : op) =
         [ 0x00f5l; word_of_id a; word_of_id b ] @
           (List.map words_of_pair_id_ref_id_ref c)
     | `OpLoopMerge (a, b, c) ->
-        [ 0x00f6l; word_of_id a; word_of_id b; value_of_loop_control c ]
+        [ 0x00f6l; word_of_id a; word_of_id b ] @ (words_of_loop_control c)
     | `OpSelectionMerge (a, b) ->
-        [ 0x00f7l; word_of_id a; value_of_selection_control b ]
+        [ 0x00f7l; word_of_id a; word_of_selection_control b ]
     | `OpLabel a -> [ 0x00f8l; word_of_id a ]
     | `OpBranch a -> [ 0x00f9l; word_of_id a ]
     | `OpBranchConditional (a, b, c, d) ->
@@ -1758,28 +1789,28 @@ let words_of_op (size_map : int IdMap.t) (op : op) =
           word_of_id e ]
     | `OpGroupIAdd (a, b, c, d, e) ->
         [ 0x0108l; word_of_id a; word_of_id b; word_of_id c;
-          value_of_group_operation d; word_of_id e ]
+          word_of_group_operation d; word_of_id e ]
     | `OpGroupFAdd (a, b, c, d, e) ->
         [ 0x0109l; word_of_id a; word_of_id b; word_of_id c;
-          value_of_group_operation d; word_of_id e ]
+          word_of_group_operation d; word_of_id e ]
     | `OpGroupFMin (a, b, c, d, e) ->
         [ 0x010al; word_of_id a; word_of_id b; word_of_id c;
-          value_of_group_operation d; word_of_id e ]
+          word_of_group_operation d; word_of_id e ]
     | `OpGroupUMin (a, b, c, d, e) ->
         [ 0x010bl; word_of_id a; word_of_id b; word_of_id c;
-          value_of_group_operation d; word_of_id e ]
+          word_of_group_operation d; word_of_id e ]
     | `OpGroupSMin (a, b, c, d, e) ->
         [ 0x010cl; word_of_id a; word_of_id b; word_of_id c;
-          value_of_group_operation d; word_of_id e ]
+          word_of_group_operation d; word_of_id e ]
     | `OpGroupFMax (a, b, c, d, e) ->
         [ 0x010dl; word_of_id a; word_of_id b; word_of_id c;
-          value_of_group_operation d; word_of_id e ]
+          word_of_group_operation d; word_of_id e ]
     | `OpGroupUMax (a, b, c, d, e) ->
         [ 0x010el; word_of_id a; word_of_id b; word_of_id c;
-          value_of_group_operation d; word_of_id e ]
+          word_of_group_operation d; word_of_id e ]
     | `OpGroupSMax (a, b, c, d, e) ->
         [ 0x010fl; word_of_id a; word_of_id b; word_of_id c;
-          value_of_group_operation d; word_of_id e ]
+          word_of_group_operation d; word_of_id e ]
     | `OpReadPipe (a, b, c, d, e, f) ->
         [ 0x0112l; word_of_id a; word_of_id b; word_of_id c; word_of_id d;
           word_of_id e; word_of_id f ]
@@ -1856,41 +1887,41 @@ let words_of_op (size_map : int IdMap.t) (op : op) =
           word_of_id e ]
     | `OpImageSparseSampleImplicitLod (a, b, c, d, e) ->
         [ 0x0131l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
-          (list_of_option (apply_option value_of_image_operands e))
+          (list_of_option (apply_option words_of_image_operands e))
     | `OpImageSparseSampleExplicitLod (a, b, c, d, e) ->
-        [ 0x0132l; word_of_id a; word_of_id b; word_of_id c; word_of_id d;
-          value_of_image_operands e ]
+        [ 0x0132l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
+          (words_of_image_operands e)
     | `OpImageSparseSampleDrefImplicitLod (a, b, c, d, e, f) ->
         [ 0x0133l; word_of_id a; word_of_id b; word_of_id c; word_of_id d;
           word_of_id e ] @
-          (list_of_option (apply_option value_of_image_operands f))
+          (list_of_option (apply_option words_of_image_operands f))
     | `OpImageSparseSampleDrefExplicitLod (a, b, c, d, e, f) ->
         [ 0x0134l; word_of_id a; word_of_id b; word_of_id c; word_of_id d;
-          word_of_id e; value_of_image_operands f ]
+          word_of_id e ] @ (words_of_image_operands f)
     | `OpImageSparseSampleProjImplicitLod (a, b, c, d, e) ->
         [ 0x0135l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
-          (list_of_option (apply_option value_of_image_operands e))
+          (list_of_option (apply_option words_of_image_operands e))
     | `OpImageSparseSampleProjExplicitLod (a, b, c, d, e) ->
-        [ 0x0136l; word_of_id a; word_of_id b; word_of_id c; word_of_id d;
-          value_of_image_operands e ]
+        [ 0x0136l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
+          (words_of_image_operands e)
     | `OpImageSparseSampleProjDrefImplicitLod (a, b, c, d, e, f) ->
         [ 0x0137l; word_of_id a; word_of_id b; word_of_id c; word_of_id d;
           word_of_id e ] @
-          (list_of_option (apply_option value_of_image_operands f))
+          (list_of_option (apply_option words_of_image_operands f))
     | `OpImageSparseSampleProjDrefExplicitLod (a, b, c, d, e, f) ->
         [ 0x0138l; word_of_id a; word_of_id b; word_of_id c; word_of_id d;
-          word_of_id e; value_of_image_operands f ]
+          word_of_id e ] @ (words_of_image_operands f)
     | `OpImageSparseFetch (a, b, c, d, e) ->
         [ 0x0139l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
-          (list_of_option (apply_option value_of_image_operands e))
+          (list_of_option (apply_option words_of_image_operands e))
     | `OpImageSparseGather (a, b, c, d, e, f) ->
         [ 0x013al; word_of_id a; word_of_id b; word_of_id c; word_of_id d;
           word_of_id e ] @
-          (list_of_option (apply_option value_of_image_operands f))
+          (list_of_option (apply_option words_of_image_operands f))
     | `OpImageSparseDrefGather (a, b, c, d, e, f) ->
         [ 0x013bl; word_of_id a; word_of_id b; word_of_id c; word_of_id d;
           word_of_id e ] @
-          (list_of_option (apply_option value_of_image_operands f))
+          (list_of_option (apply_option words_of_image_operands f))
     | `OpImageSparseTexelsResident (a, b, c) ->
         [ 0x013cl; word_of_id a; word_of_id b; word_of_id c ]
     | `OpNoLine -> [ 0x013dl ]
@@ -1901,7 +1932,7 @@ let words_of_op (size_map : int IdMap.t) (op : op) =
         [ 0x013fl; word_of_id a; word_of_id b; word_of_id c ]
     | `OpImageSparseRead (a, b, c, d, e) ->
         [ 0x0140l; word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
-          (list_of_option (apply_option value_of_image_operands e))
+          (list_of_option (apply_option words_of_image_operands e))
     | `OpSizeOf (a, b, c) ->
         [ 0x0141l; word_of_id a; word_of_id b; word_of_id c ]
     | `OpTypePipeStorage a -> [ 0x0142l; word_of_id a ]
@@ -1926,3 +1957,10 @@ let words_of_op (size_map : int IdMap.t) (op : op) =
         [ 0x1145l; word_of_id a; word_of_id b; word_of_id c ]
     | `OpSubgroupFirstInvocationKHR (a, b, c) ->
         [ 0x1146l; word_of_id a; word_of_id b; word_of_id c ];;
+let compile_to_words ops =
+  let rec loop map ls =
+    match ls with
+    | [] -> (map, [])
+    | op :: t ->
+        let (map, words) = words_of_op map op in words @ (loop map t)
+  in loop IdMap.empty ops;;
