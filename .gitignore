@@ -1,3 +1,5 @@
 *.cmo
 *.cmi
 *.byte
+*.out
+oUnit-*

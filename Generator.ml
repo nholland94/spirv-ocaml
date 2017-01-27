@@ -1,6 +1,8 @@
 open Camlp4.PreCast
 open Camlp4.PreCast.Ast
 
+let generator_number = 0x0000fadel
+
 let _loc = Loc.ghost
 
 module StringMap = Map.Make(String)
@@ -42,6 +44,12 @@ and spv_instruction =
     instruction_operands: spv_operand list;
     instruction_capabilities: string list }
 
+type spv_info =
+  { magic_number: string;
+    version: int * int;
+    kinds: spv_kind list;
+    instructions: spv_instruction list }
+
 module Util = struct
   let mutate_head fn = function
     | h :: t -> (fn h) :: t
@@ -51,6 +59,10 @@ module Util = struct
     | h1 :: h2 :: t -> List.fold_left fn h1 (h2 :: t)
     | [scalar]      -> failwith "cannot reduce a list of length 1"
     | []            -> failwith "cannot reduce an empty list"
+
+  let rec list_get n = function
+    | h :: t -> if n = 0 then h else list_get (n - 1) t
+    | []     -> failwith "list_get out of bounds"
 
   let generate_names n =
     let iota n =
@@ -125,12 +137,13 @@ module Parsing = struct
   (* TODO: add escapes *)
   let format_and_escape_kind_name name = Util.snake_case_of_camel_case name
   let fix_invalid_enumerant_name prefix name =
-    if Str.string_match (Str.regexp "^[0-9]") name 0 then
-      prefix ^ name
-    else if Str.string_match (Str.regexp "^[a-z]") name 0 then
-      String.capitalize name
-    else
-      name
+    let name =
+      if Str.string_match (Str.regexp "^[a-z]") name 0 then
+        String.capitalize name
+      else
+        name
+    in
+    prefix ^ name
 
   let rec lookup_kind_by_raw_name raw_name = function
     | (Enum (name, _, _, _) as h) :: t
@@ -243,11 +256,17 @@ module Parsing = struct
     List.map conv_enum kinds
 
   let parse json =
+    let magic_number = to_string @@ member "magic_number" json in
+    let major_version = to_int @@ member "major_version" json in
+    let minor_version = to_int @@ member "minor_version" json in
     let kind_objs = to_list @@ member "operand_kinds" json in
     let instruction_objs = to_list @@ member "instructions" json in
     let spv_kinds = wire_enum_parameters @@ List.map destruct_kind kind_objs in
     let spv_instructions = List.map (destruct_instruction spv_kinds) instruction_objs in
-    (spv_kinds, spv_instructions)
+    { magic_number = magic_number;
+      version = (major_version, minor_version);
+      kinds = spv_kinds;
+      instructions = spv_instructions }
 end
 
 
@@ -446,12 +465,12 @@ let exp_type_of_kind = function
 
 (* This function currently makes some assumptions about how the one-off kinds are used:
  *   assumption 1: operands are named 'a' - 'z' (currently true in the compiler)
- *   assumption 2: LiteralContextDependentNumber is only in instructions which have a result type as the first operand
+ *   assumption 2: LiteralContextDependentNumber is only in instructions which have a result type as the second operand
  *)
 let conversion_fn_of_kind = function
   | Type (_, _, Id)                            -> <:expr< word_of_id >>
   | Type (_, _, LiteralInteger)                -> <:expr< word_of_int >>
-  | Type (_, _, LiteralContextDependentNumber) -> <:expr< words_of_context_dependent_number (lookup_size a) >>
+  | Type (_, _, LiteralContextDependentNumber) -> <:expr< words_of_context_dependent_number (lookup_size b) >>
   | Type (_, _, LiteralExtInstInteger)         -> <:expr< todo >>
   | Type (_, _, LiteralSpecConstantOpInteger)  -> <:expr< todo >>
   | Type (_, _, LiteralString)                 -> <:expr< words_of_string >>
@@ -460,15 +479,20 @@ let conversion_fn_of_kind = function
   | Enum (_, name, (_, NonParameterized),  _)  -> Templates.ex_id_lid @@ "word_of_" ^ name
 
 let words_exp_of_operand (op, binding) =
-  let kind = op.operand_kind in
+  let { operand_kind = kind; quantifier = quantifier; _ } = op in
+  let exp_type = exp_type_of_kind kind in
   let conversion_fn = conversion_fn_of_kind kind in
-  match op.quantifier with
-    | Some Optional ->
+  match (exp_type, quantifier) with
+    | (Scalar, Some Optional) ->
         (List, <:expr< list_of_option (apply_option $conversion_fn$ $binding$) >>)
-    | Some Variadic ->
+    | (List, Some Optional)   ->
+        (List, <:expr< list_of_list_option (apply_option $conversion_fn$ $binding$) >>)
+    | (Scalar, Some Variadic) ->
         (List, <:expr< List.map $conversion_fn$ $binding$ >>)
-    | None          ->
-        (exp_type_of_kind kind, <:expr< $conversion_fn$ $binding$ >>)
+    | (List, Some Variadic)   ->
+        (List, <:expr< List.concat (List.map $conversion_fn$ $binding$) >>)
+    | (_, None)               ->
+        (exp_type, <:expr< $conversion_fn$ $binding$ >>)
 
 let concat_words_exps words_exps =
   let empty_ls_exp = Templates.ex_id_uid "[]" in
@@ -492,12 +516,39 @@ let concat_words_exps words_exps =
     | [e] -> e
     | _   -> Util.reduce Templates.concat_ls_exps ls
 
+let id_exp_of_instruction bindings = function
+  | _ :: ({ operand_kind = Type ("id_result", _, _); _ } :: _) ->
+      let binding = Util.list_get 1 bindings in
+      <:expr< Some $binding$ >>
+  | _                                            ->
+      <:expr< None >>
+
+let map_exp_of_instruction bindings = function
+  | "OpTypeInt"
+  | "OpTypeFloat" ->
+      let id = Util.list_get 0 bindings in
+      let value = Util.list_get 1 bindings in
+      <:expr< IdMap.add $id$ (Int32.to_int $value$) size_map >>
+  | "OpConstant"  ->
+      let id = Util.list_get 0 bindings in
+      let result_type = Util.list_get 1 bindings in
+      <:expr< IdMap.add $id$ (IdMap.find $result_type$ size_map) size_map >>
+  | _             ->
+      <:expr< size_map >>
+
 let build_words_exp_of_instruction instruction operand_names =
   let code_exp = Templates.ex_int @@ (Printf.sprintf "0x%04xl" instruction.instruction_code) in
   let operand_bindings = List.map Templates.ex_id_lid operand_names in
   let operand_words_exps = List.map words_exp_of_operand @@ List.combine instruction.instruction_operands operand_bindings in
-  let words_exps = (Scalar, code_exp) :: operand_words_exps in
-  concat_words_exps words_exps
+  let operand_words_exp = 
+    if List.length operand_words_exps > 0 then
+      concat_words_exps operand_words_exps
+    else
+      <:expr< [] >>
+  in
+  let map_exp = map_exp_of_instruction operand_bindings instruction.instruction_name in
+  let id_exp = id_exp_of_instruction operand_bindings instruction.instruction_operands in
+  <:expr< ($map_exp$, $id_exp$, build_op_words $code_exp$ $operand_words_exp$) >>
 
 let build_words_of_op_fn instructions =
   let match_case_of_instruction instruction =
@@ -509,22 +560,16 @@ let build_words_of_op_fn instructions =
   let patterns = Templates.match_cases Templates.LabelVariant @@ List.map match_case_of_instruction instructions in
 
   <:str_item<
-    let words_of_op = fun (size_map : int IdMap.t) (op : op) ->
-      let list_of_option = fun (opt : 'a option) ->
-        match opt with
-          | Some v  -> [v]
-          | None    -> []
-      in
-      let apply_option = fun (fn : 'a -> 'b) (opt : 'a option) ->
-        match opt with
-          | Some v -> Some (fn v)
-          | None   -> None
-      in
+    let words_and_id_of_op : int IdMap.t -> op -> int IdMap.t * id option * word list = fun size_map op ->
       let lookup_size = fun (id : id) ->
         if IdMap.mem id size_map then
           IdMap.find id size_map
         else
           raise (Id_not_found id)
+      in
+      let build_op_words = fun code operand_words ->
+        let shifted_word_count = List.length operand_words lsl 16 in
+        Int32.logor code (Int32.of_int shifted_word_count) :: operand_words
       in
       match op with $patterns$
   >>
@@ -543,7 +588,7 @@ let build_words_exp_of_parameterized_enumerant enumerant parameter_names =
   let words_exps = (Scalar, value_exp) :: parameter_words_exps in
   concat_words_exps words_exps
 
-let build_enum_value_fns (name, (ty, parameterization), enumerants) =
+let build_enum_value_fn (name, (ty, parameterization), enumerants) =
   let match_case_of_enumerant enum =
     let
       { enumerant_name = name;
@@ -583,6 +628,10 @@ module StaticElements = struct
 
   let module_definitions = [
     <:str_item< module IdMap = Map.Make(Int32) >>
+  ]
+
+  let module_signatures = [
+    <:sig_item< module IdMap : Map.S with type key = Int32.t >>
   ]
 
   let exception_definitions = [
@@ -638,12 +687,35 @@ module StaticElements = struct
         write_to_int32 3 0l (String.to_list str) 
     >>;
     <:str_item<
+      let round_up_divisible = fun divisor n ->
+        (n / divisor) + (if n mod divisor > 0 then 1 else 0)
+    >>;
+    <:str_item<
       let words_of_context_dependent_number = fun (size : int) (value : big_int_or_float) ->
+        let word_size = 32 in
+        let words_of_sized_big_int n =
+          let word_count = round_up_divisible word_size (Big_int.int_of_big_int n) in
+          let mask = Big_int.big_int_of_int 0xffffffff in
+          let extract_word i =
+            let shift_amount = word_size * i in
+            let shifted_mask = Big_int.shift_left_big_int mask shift_amount in
+            let masked_n = Big_int.and_big_int n shifted_mask in
+            let adjusted_n = Big_int.shift_right_big_int masked_n shift_amount in
+            Big_int.int32_of_big_int adjusted_n
+          in
+          let rec extract_words i =
+            if i < word_count then
+              extract_word i :: extract_words (i + 1)
+            else
+              []
+          in
+          extract_words 0
+        in
         let rec make_ls = fun n el ->
           if n = 0 then [] else el :: make_ls (n - 1) el
         in
         let words_of_sized_float = fun f ->
-          word_of_float f :: make_ls (min (size - 32) 0 / 32) 0l
+          word_of_float f :: make_ls (min (size - word_size) 0 / word_size) 0l
         in
         match value with
           | BigInt n -> words_of_sized_big_int n
@@ -652,7 +724,7 @@ module StaticElements = struct
     <:str_item<
       let words_of_string = fun (str : string) ->
         let len = String.length str in
-        let word_count = len / 4 in
+        let word_count = round_up_divisible 4 len in
         let buffer = Array.make word_count 0l in
         let add_char_to_word ch offset word =
           Int32.logor word (Int32.shift_left (Int32.of_int @@ Char.code ch) (offset * 4))
@@ -667,6 +739,33 @@ module StaticElements = struct
         in
         add_char_to_buffer 0;
         Array.to_list buffer
+    >>;
+    (* These need to be outside of the words_of_op
+     * fn even though they are used only by it.
+     * If they are in the function, the type inference
+     * breaks on them.
+     * TODO: file bug report
+     *)
+    <:str_item<
+      let todo _ = failwith "TODO"
+    >>;
+    <:str_item<
+      let list_of_option = fun (opt : 'a option) ->
+        match opt with
+          | Some v -> [v]
+          | None   -> []
+    >>;
+    <:str_item<
+      let list_of_list_option = fun (opt : 'a list option) ->
+        match opt with
+          | Some v -> v
+          | None   -> []
+    >>;
+    <:str_item<
+      let apply_option = fun (fn : 'a -> 'b) (opt : 'a option) ->
+        match opt with
+          | Some v -> Some (fn v)
+          | None   -> None
     >>
   ]
 
@@ -675,12 +774,32 @@ module StaticElements = struct
       let compile_to_words = fun ops ->
         let rec loop = fun map ls ->
           match ls with
-            | []     -> (map, [])
+            | []     -> (0l, [])
             | op :: t ->
-                let (map, words) = words_of_op map op in
-                words @ loop map t
+                let (map, id_opt, words) = words_and_id_of_op map op in
+                let id = match id_opt with Some i -> i | None -> 0l in
+                let (next_id, next_words) = loop map t in
+                (max id next_id, words @ next_words)
         in
-        loop IdMap.empty ops
+        let (max_id, op_words) = loop IdMap.empty ops in
+        let header = [
+          magic_number;
+          version_word;
+          generator_number;
+          max_id;
+          0l
+        ] in
+
+        header @ op_words
+    >>
+  ]
+
+  let vals = [
+    <:sig_item<
+      val version : int * int
+    >>;
+    <:sig_item<
+      val compile_to_words : op list -> word list
     >>
   ]
 end
@@ -691,10 +810,16 @@ let defer_decoration_enum enums =
   let decoration_def = List.find is_decoration enums in
   List.filter ((not) <=< is_decoration) enums @ [decoration_def]
 
-let generate_code (spv_kinds, spv_instructions) =
-  let output = Printers.OCaml.print_implem in
-  (* let type_map = collect_type_map spv_kinds in *)
-  let (enums, types) = Util.filter_kinds spv_kinds in
+let pack_version (major, minor) =
+  let open Int32 in
+  let major_i32 = of_int major in
+  let minor_i32 = of_int minor in
+  let major_mask = shift_left (logand major_i32 0x07l) 16 in
+  let minor_mask = shift_left (logand minor_i32 0x07l) 4 in
+  logor major_mask minor_mask
+
+let generate_implementation output info =
+  let (enums, types) = Util.filter_kinds info.kinds in
   let enums = defer_decoration_enum enums in
 
   List.iter output StaticElements.open_definitions;
@@ -705,17 +830,64 @@ let generate_code (spv_kinds, spv_instructions) =
   List.iter output StaticElements.type_definitions;
   List.iter (output <=< build_kind_typedef) types;
   List.iter (output <=< build_enum_typedef) enums;
-  output @@ build_op_typedef spv_instructions;
+  output @@ build_op_typedef info.instructions;
+
+  (* values *)
+  let magic_number_exp = Templates.ex_int (info.magic_number ^ "l") in
+  output <:str_item< let magic_number = $magic_number_exp$ >>;
+
+  let (major_version, minor_version) = info.version in
+  let major_version_exp = Templates.ex_int (string_of_int major_version) in
+  let minor_version_exp = Templates.ex_int (string_of_int minor_version) in
+  output <:str_item< let version = ($major_version_exp$, $minor_version_exp$) >>;
+
+  let packed_version_exp = Templates.ex_int @@ Printf.sprintf "0x%08lxl" (pack_version info.version) in
+  output <:str_item< let version_word = $packed_version_exp$ >>;
+
+  let generator_number_exp = Templates.ex_int @@ (Printf.sprintf "0x%04lxl" generator_number) in
+  output <:str_item< let generator_number = $generator_number_exp$ >>;
 
   (* functions *)
   List.iter output StaticElements.conversion_functions;
   List.iter output StaticElements.lazy_definitions;
-  List.iter output @@ List.map build_enum_value_fns enums;
-  output @@ build_words_of_op_fn spv_instructions;
+  List.iter output @@ List.map build_enum_value_fn enums;
+  output @@ build_words_of_op_fn info.instructions;
   List.iter output StaticElements.interfaces
 
+let cast_sig = function
+  | StTyp (loc, t)    -> SgTyp (loc, t)
+  | StOpn (loc, i)    -> SgOpn (loc, i)
+  | StExc (loc, t, _) -> SgExc (loc, t)
+  | _              -> failwith "unhandled case in cast_sig"
+
+let generate_interface output info =
+  let (enums, types) = Util.filter_kinds info.kinds in
+  let enums = defer_decoration_enum enums in
+
+  List.iter output @@ List.map cast_sig StaticElements.open_definitions;
+  List.iter output @@ StaticElements.module_signatures;
+  List.iter output @@ List.map cast_sig StaticElements.exception_definitions;
+
+  (* typedefs *)
+  List.iter output @@ List.map cast_sig StaticElements.type_definitions;
+  List.iter (output <=< cast_sig <=< build_kind_typedef) types;
+  List.iter (output <=< cast_sig <=< build_enum_typedef) enums;
+  output @@ cast_sig @@ build_op_typedef info.instructions;
+
+  List.iter output StaticElements.vals
+
 let () =
+  (if Array.length Sys.argv < 2 then failwith "Invalid number of arguments");
+
+  let generator = match Sys.argv.(1) with
+    | "implem" -> generate_implementation Printers.OCaml.print_implem
+    | "interf" -> generate_interface Printers.OCaml.print_interf
+    | _        -> failwith "Invalid argument"
+  in
+
   let in_ch = open_in "spirv.core.grammar.json" in
   let json = Yojson.Basic.from_channel in_ch in
-  generate_code @@ Parsing.parse json;
-  close_in in_ch
+  let spirv_info = Parsing.parse json in
+  close_in in_ch;
+
+  generator spirv_info
