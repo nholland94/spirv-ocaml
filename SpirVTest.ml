@@ -1,8 +1,9 @@
 open OUnit2
+open Batteries
 open SpirV
 
 let binary_comparison_set_creators =[
-  (fun () ->
+  ("copy.spv", fun () ->
     let func = 1 in
     let v_in = 2 in
     let v_out = 3 in
@@ -119,6 +120,23 @@ let binary_comparison_set_creators =[
     "
   );
 ]
+
+let build_binary_comparison_test (name, fn) =
+  let (ops, asm_source) = fn () in
+  let rec read_all_with fn ch =
+    try
+      let value = fn ch in
+      value :: read_all_with fn ch
+    with
+      | IO.No_more_input -> []
+  in
+  name >:: fun _ -> begin
+    let op_words = compile_to_words ops in
+    let in_ch = Unix.open_process_in (Printf.sprintf "spirv-as -o - %s" asm_source) in
+    let asm_words = read_all_with IO.read_real_i32 in_ch in
+    close_in in_ch;
+    assert_equal op_words asm_words
+  end
 
 let suite = "SpirV" >::: [
   "binary_comparisons" >::: List.map build_binary_comparison_test binary_comparison_set_creators
