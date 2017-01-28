@@ -465,12 +465,12 @@ let exp_type_of_kind = function
 
 (* This function currently makes some assumptions about how the one-off kinds are used:
  *   assumption 1: operands are named 'a' - 'z' (currently true in the compiler)
- *   assumption 2: LiteralContextDependentNumber is only in instructions which have a result type as the second operand
+ *   assumption 2: LiteralContextDependentNumber is only in instructions which have a result type as the first operand
  *)
 let conversion_fn_of_kind = function
   | Type (_, _, Id)                            -> <:expr< word_of_id >>
   | Type (_, _, LiteralInteger)                -> <:expr< word_of_int >>
-  | Type (_, _, LiteralContextDependentNumber) -> <:expr< words_of_context_dependent_number (lookup_size b) >>
+  | Type (_, _, LiteralContextDependentNumber) -> <:expr< words_of_context_dependent_number (lookup_size a) >>
   | Type (_, _, LiteralExtInstInteger)         -> <:expr< todo >>
   | Type (_, _, LiteralSpecConstantOpInteger)  -> <:expr< todo >>
   | Type (_, _, LiteralString)                 -> <:expr< words_of_string >>
@@ -517,7 +517,7 @@ let concat_words_exps words_exps =
     | _   -> Util.reduce Templates.concat_ls_exps ls
 
 let id_exp_of_instruction bindings = function
-  | _ :: ({ operand_kind = Type ("id_result", _, _); _ } :: _) ->
+  | _ :: ({ operand_kind = Type ("IdResult", _, _); _ } :: _) ->
       let binding = Util.list_get 1 bindings in
       <:expr< Some $binding$ >>
   | _                                            ->
@@ -530,8 +530,8 @@ let map_exp_of_instruction bindings = function
       let value = Util.list_get 1 bindings in
       <:expr< IdMap.add $id$ (Int32.to_int $value$) size_map >>
   | "OpConstant"  ->
-      let id = Util.list_get 0 bindings in
-      let result_type = Util.list_get 1 bindings in
+      let result_type = Util.list_get 0 bindings in
+      let id = Util.list_get 1 bindings in
       <:expr< IdMap.add $id$ (IdMap.find $result_type$ size_map) size_map >>
   | _             ->
       <:expr< size_map >>
@@ -565,10 +565,11 @@ let build_words_of_op_fn instructions =
         if IdMap.mem id size_map then
           IdMap.find id size_map
         else
-          raise (Id_not_found id)
+          let print_ids k _ = print_endline @@ Int32.to_string k in
+          (IdMap.iter print_ids size_map; raise (Id_not_found id))
       in
       let build_op_words = fun code operand_words ->
-        let shifted_word_count = List.length operand_words lsl 16 in
+        let shifted_word_count = (List.length operand_words + 1) lsl 16 in
         Int32.logor code (Int32.of_int shifted_word_count) :: operand_words
       in
       match op with $patterns$
@@ -694,7 +695,7 @@ module StaticElements = struct
       let words_of_context_dependent_number = fun (size : int) (value : big_int_or_float) ->
         let word_size = 32 in
         let words_of_sized_big_int n =
-          let word_count = round_up_divisible word_size (Big_int.int_of_big_int n) in
+          let word_count = round_up_divisible word_size size in
           let mask = Big_int.big_int_of_int 0xffffffff in
           let extract_word i =
             let shift_amount = word_size * i in
@@ -786,7 +787,7 @@ module StaticElements = struct
           magic_number;
           version_word;
           generator_number;
-          max_id;
+          Int32.add max_id 1l;
           0l
         ] in
 
@@ -814,8 +815,8 @@ let pack_version (major, minor) =
   let open Int32 in
   let major_i32 = of_int major in
   let minor_i32 = of_int minor in
-  let major_mask = shift_left (logand major_i32 0x07l) 16 in
-  let minor_mask = shift_left (logand minor_i32 0x07l) 4 in
+  let major_mask = shift_left (logand major_i32 0x03l) 16 in
+  let minor_mask = shift_left (logand minor_i32 0x03l) 8 in
   logor major_mask minor_mask
 
 let generate_implementation output info =

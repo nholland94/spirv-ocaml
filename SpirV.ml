@@ -852,7 +852,7 @@ type op =
   ];;
 let magic_number = 0x07230203l;;
 let version = (1, 1);;
-let version_word = 0x00010010l;;
+let version_word = 0x00010100l;;
 let generator_number = 0xfadel;;
 let word_of_int (i : int32) = i;;
 let word_of_id (id : id) =
@@ -877,8 +877,7 @@ let words_of_context_dependent_number (size : int) (value : big_int_or_float)
                                       =
   let word_size = 32 in
   let words_of_sized_big_int n =
-    let word_count =
-      round_up_divisible word_size (Big_int.int_of_big_int n) in
+    let word_count = round_up_divisible word_size size in
     let mask = Big_int.big_int_of_int 0xffffffff in
     let extract_word i =
       let shift_amount = word_size * i in
@@ -1378,16 +1377,18 @@ let words_and_id_of_op :
     let lookup_size (id : id) =
       if IdMap.mem id size_map
       then IdMap.find id size_map
-      else raise (Id_not_found id) in
+      else
+        (let print_ids k _ = print_endline @@ (Int32.to_string k)
+         in (IdMap.iter print_ids size_map; raise (Id_not_found id))) in
     let build_op_words code operand_words =
-      let shifted_word_count = (List.length operand_words) lsl 16
+      let shifted_word_count = ((List.length operand_words) + 1) lsl 16
       in
         (Int32.logor code (Int32.of_int shifted_word_count)) :: operand_words
     in
       match op with
       | `OpNop -> (size_map, None, (build_op_words 0x0000l []))
       | `OpUndef (a, b) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0001l [ word_of_id a; word_of_id b ]))
       | `OpSourceContinued a ->
           (size_map, None, (build_op_words 0x0002l (words_of_string a)))
@@ -1419,7 +1420,7 @@ let words_and_id_of_op :
           (size_map, None,
            (build_op_words 0x000bl ([ word_of_id a ] @ (words_of_string b))))
       | `OpExtInst (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x000cl
               (([ word_of_id a; word_of_id b; word_of_id c ] @ (todo d)) @
                  (List.map word_of_id e))))
@@ -1508,74 +1509,74 @@ let words_and_id_of_op :
           (size_map, None,
            (build_op_words 0x0027l [ word_of_id a; word_of_storage_class b ]))
       | `OpConstantTrue (a, b) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0029l [ word_of_id a; word_of_id b ]))
       | `OpConstantFalse (a, b) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x002al [ word_of_id a; word_of_id b ]))
       | `OpConstant (a, b, c) ->
-          ((IdMap.add a (IdMap.find b size_map) size_map), None,
+          ((IdMap.add b (IdMap.find a size_map) size_map), (Some b),
            (build_op_words 0x002bl
               ([ word_of_id a; word_of_id b ] @
-                 (words_of_context_dependent_number (lookup_size b) c))))
+                 (words_of_context_dependent_number (lookup_size a) c))))
       | `OpConstantComposite (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x002cl
               ([ word_of_id a; word_of_id b ] @ (List.map word_of_id c))))
       | `OpConstantSampler (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x002dl
               [ word_of_id a; word_of_id b;
                 word_of_sampler_addressing_mode c; word_of_int d;
                 word_of_sampler_filter_mode e ]))
       | `OpConstantNull (a, b) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x002el [ word_of_id a; word_of_id b ]))
       | `OpSpecConstantTrue (a, b) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0030l [ word_of_id a; word_of_id b ]))
       | `OpSpecConstantFalse (a, b) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0031l [ word_of_id a; word_of_id b ]))
       | `OpSpecConstant (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0032l
               ([ word_of_id a; word_of_id b ] @
-                 (words_of_context_dependent_number (lookup_size b) c))))
+                 (words_of_context_dependent_number (lookup_size a) c))))
       | `OpSpecConstantComposite (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0033l
               ([ word_of_id a; word_of_id b ] @ (List.map word_of_id c))))
       | `OpSpecConstantOp (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0034l
               ([ word_of_id a; word_of_id b ] @ (todo c))))
       | `OpFunction (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0036l
               [ word_of_id a; word_of_id b; word_of_function_control c;
                 word_of_id d ]))
       | `OpFunctionParameter (a, b) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0037l [ word_of_id a; word_of_id b ]))
       | `OpFunctionEnd -> (size_map, None, (build_op_words 0x0038l []))
       | `OpFunctionCall (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0039l
               ([ word_of_id a; word_of_id b; word_of_id c ] @
                  (List.map word_of_id d))))
       | `OpVariable (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x003bl
               ([ word_of_id a; word_of_id b; word_of_storage_class c ] @
                  (list_of_option (apply_option word_of_id d)))))
       | `OpImageTexelPointer (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x003cl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e ]))
       | `OpLoad (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x003dl
               ([ word_of_id a; word_of_id b; word_of_id c ] @
                  (list_of_list_option (apply_option words_of_memory_access d)))))
@@ -1595,30 +1596,30 @@ let words_and_id_of_op :
               ([ word_of_id a; word_of_id b; word_of_id c ] @
                  (list_of_list_option (apply_option words_of_memory_access d)))))
       | `OpAccessChain (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0041l
               ([ word_of_id a; word_of_id b; word_of_id c ] @
                  (List.map word_of_id d))))
       | `OpInBoundsAccessChain (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0042l
               ([ word_of_id a; word_of_id b; word_of_id c ] @
                  (List.map word_of_id d))))
       | `OpPtrAccessChain (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0043l
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
                  (List.map word_of_id e))))
       | `OpArrayLength (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0044l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_int d ]))
       | `OpGenericPtrMemSemantics (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0045l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpInBoundsPtrAccessChain (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0046l
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
                  (List.map word_of_id e))))
@@ -1643,113 +1644,113 @@ let words_and_id_of_op :
                  (List.concat
                     (List.map words_of_pair_id_ref_literal_integer b)))))
       | `OpVectorExtractDynamic (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x004dl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpVectorInsertDynamic (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x004el
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e ]))
       | `OpVectorShuffle (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x004fl
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
                  (List.map word_of_int e))))
       | `OpCompositeConstruct (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0050l
               ([ word_of_id a; word_of_id b ] @ (List.map word_of_id c))))
       | `OpCompositeExtract (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0051l
               ([ word_of_id a; word_of_id b; word_of_id c ] @
                  (List.map word_of_int d))))
       | `OpCompositeInsert (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0052l
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
                  (List.map word_of_int e))))
       | `OpCopyObject (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0053l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpTranspose (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0054l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpSampledImage (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0056l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpImageSampleImplicitLod (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0057l
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
                  (list_of_list_option
                     (apply_option words_of_image_operands e)))))
       | `OpImageSampleExplicitLod (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0058l
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
                  (words_of_image_operands e))))
       | `OpImageSampleDrefImplicitLod (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0059l
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                  word_of_id e ] @
                  (list_of_list_option
                     (apply_option words_of_image_operands f)))))
       | `OpImageSampleDrefExplicitLod (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x005al
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                  word_of_id e ] @ (words_of_image_operands f))))
       | `OpImageSampleProjImplicitLod (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x005bl
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
                  (list_of_list_option
                     (apply_option words_of_image_operands e)))))
       | `OpImageSampleProjExplicitLod (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x005cl
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
                  (words_of_image_operands e))))
       | `OpImageSampleProjDrefImplicitLod (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x005dl
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                  word_of_id e ] @
                  (list_of_list_option
                     (apply_option words_of_image_operands f)))))
       | `OpImageSampleProjDrefExplicitLod (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x005el
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                  word_of_id e ] @ (words_of_image_operands f))))
       | `OpImageFetch (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x005fl
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
                  (list_of_list_option
                     (apply_option words_of_image_operands e)))))
       | `OpImageGather (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0060l
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                  word_of_id e ] @
                  (list_of_list_option
                     (apply_option words_of_image_operands f)))))
       | `OpImageDrefGather (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0061l
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                  word_of_id e ] @
                  (list_of_list_option
                     (apply_option words_of_image_operands f)))))
       | `OpImageRead (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0062l
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
                  (list_of_list_option
@@ -1761,448 +1762,448 @@ let words_and_id_of_op :
                  (list_of_list_option
                     (apply_option words_of_image_operands d)))))
       | `OpImage (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0064l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpImageQueryFormat (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0065l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpImageQueryOrder (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0066l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpImageQuerySizeLod (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0067l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpImageQuerySize (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0068l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpImageQueryLod (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0069l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpImageQueryLevels (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x006al
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpImageQuerySamples (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x006bl
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpConvertFToU (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x006dl
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpConvertFToS (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x006el
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpConvertSToF (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x006fl
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpConvertUToF (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0070l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpUConvert (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0071l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpSConvert (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0072l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpFConvert (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0073l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpQuantizeToF16 (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0074l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpConvertPtrToU (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0075l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpSatConvertSToU (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0076l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpSatConvertUToS (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0077l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpConvertUToPtr (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0078l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpPtrCastToGeneric (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0079l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpGenericCastToPtr (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x007al
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpGenericCastToPtrExplicit (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x007bl
               [ word_of_id a; word_of_id b; word_of_id c;
                 word_of_storage_class d ]))
       | `OpBitcast (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x007cl
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpSNegate (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x007el
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpFNegate (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x007fl
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpIAdd (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0080l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpFAdd (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0081l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpISub (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0082l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpFSub (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0083l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpIMul (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0084l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpFMul (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0085l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpUDiv (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0086l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpSDiv (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0087l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpFDiv (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0088l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpUMod (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0089l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpSRem (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x008al
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpSMod (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x008bl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpFRem (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x008cl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpFMod (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x008dl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpVectorTimesScalar (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x008el
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpMatrixTimesScalar (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x008fl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpVectorTimesMatrix (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0090l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpMatrixTimesVector (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0091l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpMatrixTimesMatrix (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0092l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpOuterProduct (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0093l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpDot (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0094l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpIAddCarry (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0095l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpISubBorrow (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0096l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpUMulExtended (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0097l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpSMulExtended (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0098l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpAny (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x009al
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpAll (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x009bl
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpIsNan (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x009cl
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpIsInf (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x009dl
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpIsFinite (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x009el
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpIsNormal (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x009fl
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpSignBitSet (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00a0l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpLessOrGreater (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00a1l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpOrdered (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00a2l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpUnordered (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00a3l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpLogicalEqual (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00a4l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpLogicalNotEqual (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00a5l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpLogicalOr (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00a6l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpLogicalAnd (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00a7l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpLogicalNot (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00a8l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpSelect (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00a9l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e ]))
       | `OpIEqual (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00aal
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpINotEqual (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00abl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpUGreaterThan (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00acl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpSGreaterThan (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00adl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpUGreaterThanEqual (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00ael
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpSGreaterThanEqual (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00afl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpULessThan (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00b0l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpSLessThan (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00b1l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpULessThanEqual (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00b2l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpSLessThanEqual (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00b3l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpFOrdEqual (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00b4l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpFUnordEqual (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00b5l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpFOrdNotEqual (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00b6l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpFUnordNotEqual (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00b7l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpFOrdLessThan (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00b8l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpFUnordLessThan (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00b9l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpFOrdGreaterThan (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00bal
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpFUnordGreaterThan (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00bbl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpFOrdLessThanEqual (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00bcl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpFUnordLessThanEqual (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00bdl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpFOrdGreaterThanEqual (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00bel
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpFUnordGreaterThanEqual (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00bfl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpShiftRightLogical (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00c2l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpShiftRightArithmetic (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00c3l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpShiftLeftLogical (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00c4l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpBitwiseOr (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00c5l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpBitwiseXor (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00c6l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpBitwiseAnd (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00c7l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpNot (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00c8l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpBitFieldInsert (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00c9l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f ]))
       | `OpBitFieldSExtract (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00cal
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e ]))
       | `OpBitFieldUExtract (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00cbl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e ]))
       | `OpBitReverse (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00ccl
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpBitCount (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00cdl
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpDPdx (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00cfl
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpDPdy (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00d0l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpFwidth (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00d1l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpDPdxFine (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00d2l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpDPdyFine (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00d3l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpFwidthFine (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00d4l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpDPdxCoarse (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00d5l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpDPdyCoarse (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00d6l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpFwidthCoarse (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00d7l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpEmitVertex -> (size_map, None, (build_op_words 0x00dal []))
@@ -2219,7 +2220,7 @@ let words_and_id_of_op :
           (size_map, None,
            (build_op_words 0x00e1l [ word_of_id a; word_of_id b ]))
       | `OpAtomicLoad (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00e3l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e ]))
@@ -2228,77 +2229,77 @@ let words_and_id_of_op :
            (build_op_words 0x00e4l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpAtomicExchange (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00e5l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f ]))
       | `OpAtomicCompareExchange (a, b, c, d, e, f, g, h) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00e6l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f; word_of_id g; word_of_id h ]))
       | `OpAtomicCompareExchangeWeak (a, b, c, d, e, f, g, h) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00e7l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f; word_of_id g; word_of_id h ]))
       | `OpAtomicIIncrement (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00e8l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e ]))
       | `OpAtomicIDecrement (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00e9l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e ]))
       | `OpAtomicIAdd (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00eal
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f ]))
       | `OpAtomicISub (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00ebl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f ]))
       | `OpAtomicSMin (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00ecl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f ]))
       | `OpAtomicUMin (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00edl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f ]))
       | `OpAtomicSMax (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00eel
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f ]))
       | `OpAtomicUMax (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00efl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f ]))
       | `OpAtomicAnd (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00f0l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f ]))
       | `OpAtomicOr (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00f1l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f ]))
       | `OpAtomicXor (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00f2l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f ]))
       | `OpPhi (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x00f5l
               ([ word_of_id a; word_of_id b ] @
                  (List.concat (List.map words_of_pair_id_ref_id_ref c)))))
@@ -2337,7 +2338,7 @@ let words_and_id_of_op :
           (size_map, None,
            (build_op_words 0x0101l [ word_of_id a; word_of_int b ]))
       | `OpGroupAsyncCopy (a, b, c, d, e, f, g, h) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0103l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f; word_of_id g; word_of_id h ]))
@@ -2346,85 +2347,85 @@ let words_and_id_of_op :
            (build_op_words 0x0104l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpGroupAll (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0105l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpGroupAny (a, b, c, d) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0106l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpGroupBroadcast (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0107l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e ]))
       | `OpGroupIAdd (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0108l
               [ word_of_id a; word_of_id b; word_of_id c;
                 word_of_group_operation d; word_of_id e ]))
       | `OpGroupFAdd (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0109l
               [ word_of_id a; word_of_id b; word_of_id c;
                 word_of_group_operation d; word_of_id e ]))
       | `OpGroupFMin (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x010al
               [ word_of_id a; word_of_id b; word_of_id c;
                 word_of_group_operation d; word_of_id e ]))
       | `OpGroupUMin (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x010bl
               [ word_of_id a; word_of_id b; word_of_id c;
                 word_of_group_operation d; word_of_id e ]))
       | `OpGroupSMin (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x010cl
               [ word_of_id a; word_of_id b; word_of_id c;
                 word_of_group_operation d; word_of_id e ]))
       | `OpGroupFMax (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x010dl
               [ word_of_id a; word_of_id b; word_of_id c;
                 word_of_group_operation d; word_of_id e ]))
       | `OpGroupUMax (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x010el
               [ word_of_id a; word_of_id b; word_of_id c;
                 word_of_group_operation d; word_of_id e ]))
       | `OpGroupSMax (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x010fl
               [ word_of_id a; word_of_id b; word_of_id c;
                 word_of_group_operation d; word_of_id e ]))
       | `OpReadPipe (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0112l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f ]))
       | `OpWritePipe (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0113l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f ]))
       | `OpReservedReadPipe (a, b, c, d, e, f, g, h) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0114l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f; word_of_id g; word_of_id h ]))
       | `OpReservedWritePipe (a, b, c, d, e, f, g, h) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0115l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f; word_of_id g; word_of_id h ]))
       | `OpReserveReadPipePackets (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0116l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f ]))
       | `OpReserveWritePipePackets (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0117l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f ]))
@@ -2437,26 +2438,26 @@ let words_and_id_of_op :
            (build_op_words 0x0119l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d ]))
       | `OpIsValidReserveId (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x011al
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpGetNumPipePackets (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x011bl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e ]))
       | `OpGetMaxPipePackets (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x011cl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e ]))
       | `OpGroupReserveReadPipePackets (a, b, c, d, e, f, g) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x011dl
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f; word_of_id g ]))
       | `OpGroupReserveWritePipePackets (a, b, c, d, e, f, g) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x011el
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f; word_of_id g ]))
@@ -2471,34 +2472,34 @@ let words_and_id_of_op :
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e ]))
       | `OpEnqueueMarker (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0123l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f ]))
       | `OpEnqueueKernel (a, b, c, d, e, f, g, h, i, j, k, l, m) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0124l
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                  word_of_id e; word_of_id f; word_of_id g; word_of_id h;
                  word_of_id i; word_of_id j; word_of_id k; word_of_id l ] @
                  (List.map word_of_id m))))
       | `OpGetKernelNDrangeSubGroupCount (a, b, c, d, e, f, g) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0125l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f; word_of_id g ]))
       | `OpGetKernelNDrangeMaxSubGroupSize (a, b, c, d, e, f, g) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0126l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f; word_of_id g ]))
       | `OpGetKernelWorkGroupSize (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0127l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f ]))
       | `OpGetKernelPreferredWorkGroupSizeMultiple (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0128l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f ]))
@@ -2507,10 +2508,10 @@ let words_and_id_of_op :
       | `OpReleaseEvent a ->
           (size_map, None, (build_op_words 0x012al [ word_of_id a ]))
       | `OpCreateUserEvent (a, b) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x012bl [ word_of_id a; word_of_id b ]))
       | `OpIsValidEvent (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x012cl
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpSetUserEventStatus (a, b) ->
@@ -2521,86 +2522,86 @@ let words_and_id_of_op :
            (build_op_words 0x012el
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpGetDefaultQueue (a, b) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x012fl [ word_of_id a; word_of_id b ]))
       | `OpBuildNDRange (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0130l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e ]))
       | `OpImageSparseSampleImplicitLod (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0131l
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
                  (list_of_list_option
                     (apply_option words_of_image_operands e)))))
       | `OpImageSparseSampleExplicitLod (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0132l
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
                  (words_of_image_operands e))))
       | `OpImageSparseSampleDrefImplicitLod (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0133l
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                  word_of_id e ] @
                  (list_of_list_option
                     (apply_option words_of_image_operands f)))))
       | `OpImageSparseSampleDrefExplicitLod (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0134l
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                  word_of_id e ] @ (words_of_image_operands f))))
       | `OpImageSparseSampleProjImplicitLod (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0135l
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
                  (list_of_list_option
                     (apply_option words_of_image_operands e)))))
       | `OpImageSparseSampleProjExplicitLod (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0136l
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
                  (words_of_image_operands e))))
       | `OpImageSparseSampleProjDrefImplicitLod (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0137l
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                  word_of_id e ] @
                  (list_of_list_option
                     (apply_option words_of_image_operands f)))))
       | `OpImageSparseSampleProjDrefExplicitLod (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0138l
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                  word_of_id e ] @ (words_of_image_operands f))))
       | `OpImageSparseFetch (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0139l
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
                  (list_of_list_option
                     (apply_option words_of_image_operands e)))))
       | `OpImageSparseGather (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x013al
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                  word_of_id e ] @
                  (list_of_list_option
                     (apply_option words_of_image_operands f)))))
       | `OpImageSparseDrefGather (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x013bl
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                  word_of_id e ] @
                  (list_of_list_option
                     (apply_option words_of_image_operands f)))))
       | `OpImageSparseTexelsResident (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x013cl
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpNoLine -> (size_map, None, (build_op_words 0x013dl []))
       | `OpAtomicFlagTestAndSet (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x013el
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e ]))
@@ -2609,40 +2610,40 @@ let words_and_id_of_op :
            (build_op_words 0x013fl
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpImageSparseRead (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0140l
               ([ word_of_id a; word_of_id b; word_of_id c; word_of_id d ] @
                  (list_of_list_option
                     (apply_option words_of_image_operands e)))))
       | `OpSizeOf (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0141l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpTypePipeStorage a ->
           (size_map, None, (build_op_words 0x0142l [ word_of_id a ]))
       | `OpConstantPipeStorage (a, b, c, d, e) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0143l
               [ word_of_id a; word_of_id b; word_of_int c; word_of_int d;
                 word_of_int e ]))
       | `OpCreatePipeFromPipeStorage (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0144l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpGetKernelLocalSizeForSubgroupCount (a, b, c, d, e, f, g) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0145l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f; word_of_id g ]))
       | `OpGetKernelMaxNumSubgroups (a, b, c, d, e, f) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0146l
               [ word_of_id a; word_of_id b; word_of_id c; word_of_id d;
                 word_of_id e; word_of_id f ]))
       | `OpTypeNamedBarrier a ->
           (size_map, None, (build_op_words 0x0147l [ word_of_id a ]))
       | `OpNamedBarrierInitialize (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x0148l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpMemoryNamedBarrier (a, b, c) ->
@@ -2652,11 +2653,11 @@ let words_and_id_of_op :
       | `OpModuleProcessed a ->
           (size_map, None, (build_op_words 0x014al (words_of_string a)))
       | `OpSubgroupBallotKHR (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x1145l
               [ word_of_id a; word_of_id b; word_of_id c ]))
       | `OpSubgroupFirstInvocationKHR (a, b, c) ->
-          (size_map, None,
+          (size_map, (Some b),
            (build_op_words 0x1146l
               [ word_of_id a; word_of_id b; word_of_id c ]));;
 let compile_to_words ops =
@@ -2669,5 +2670,6 @@ let compile_to_words ops =
         let (next_id, next_words) = loop map t
         in ((max id next_id), (words @ next_words)) in
   let (max_id, op_words) = loop IdMap.empty ops in
-  let header = [ magic_number; version_word; generator_number; max_id; 0l ]
+  let header =
+    [ magic_number; version_word; generator_number; Int32.add max_id 1l; 0l ]
   in header @ op_words;;

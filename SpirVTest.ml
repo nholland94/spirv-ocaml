@@ -2,7 +2,121 @@ open OUnit2
 open Batteries
 open SpirV
 
+let id n = "%" ^ (string_of_int @@ Int32.to_int n)
+
+let cons_big_int ls =
+  let rec loop i = function
+    | h :: t ->
+        let shifted_value = Big_int.shift_left_big_int (Big_int.of_int h) (i * 32) in
+        Big_int.and_big_int shifted_value (loop (i - 1) t)
+    | []     -> Big_int.of_int 0
+  in
+  loop (List.length ls - 1) ls
+
 let binary_comparison_set_creators =[
+  (* TODO test unsigned constants *)
+  ("constant values", fun () ->
+    let func = 1l in
+    let t_void = 2l in
+    let t_func = 3l in
+    let t_int_32 = 4l in
+    let t_int_40 = 5l in
+    let t_int_64 = 6l in
+    let c_int_32_1 = 9l in
+    let c_int_40_1 = 10l in
+    let c_int_40_2 = 11l in
+    let c_int_64_1 = 12l in
+
+    [
+      `OpCapability CapabilityShader;
+      `OpMemoryModel (AddressingModelLogical, MemoryModelSimple);
+      `OpEntryPoint (ExecutionModelGLCompute, func, "f", []);
+      `OpExecutionMode (func, ExecutionModeLocalSize (1l, 1l, 1l));
+
+      `OpTypeVoid t_void;
+      `OpTypeFunction (t_func, t_void, []);
+
+      `OpTypeInt (t_int_32, 32l, 1l);
+      `OpTypeInt (t_int_40, 40l, 1l);
+      `OpTypeInt (t_int_64, 64l, 1l);
+
+      `OpConstant (t_int_32, c_int_32_1, BigInt (Big_int.big_int_of_int 200));
+      `OpConstant (t_int_40, c_int_40_1, BigInt (Big_int.big_int_of_int 400));
+      `OpConstant (t_int_40, c_int_40_2, BigInt (cons_big_int [0x0000000f; 0xffff00ff]));
+      `OpConstant (t_int_64, c_int_64_1, BigInt (cons_big_int [0x00ff00ff; 0xffff007f]))
+    ], "
+                      OpCapability Shader
+                      OpMemoryModel Logical Simple
+                      OpEntryPoint GLCompute "^id func^" \"f\"
+                      OpExecutionMode "^id func^" LocalSize 1 1 1
+
+"^id t_void^"       = OpTypeVoid
+"^id t_func^"       = OpTypeFunction "^id t_void^"
+
+"^id t_int_32^"     = OpTypeInt 32 1
+"^id t_int_40^"     = OpTypeInt 40 1
+"^id t_int_64^"     = OpTypeInt 64 1
+
+"^id c_int_32_1^"   = OpConstant "^id t_int_32^" 200
+"^id c_int_40_1^"   = OpConstant "^id t_int_40^" 400
+"^id c_int_40_2^"   = OpConstant "^id t_int_40^" 68719411455
+"^id c_int_64_1^"   = OpConstant "^id t_int_64^" 71793711247196287
+    "
+  );
+  ("very large program", fun () ->
+    let func = 1l in
+    let t_void = 2l in
+    let t_func = 3l in
+    let t_int = 4l in
+
+    let statement_base_id = 5l in
+
+    let statement_count = 5000l in
+
+    let base_ops = [
+      `OpCapability CapabilityShader;
+      `OpMemoryModel (AddressingModelLogical, MemoryModelSimple);
+      `OpEntryPoint (ExecutionModelGLCompute, func, "f", []);
+      `OpExecutionMode (func, ExecutionModeLocalSize (1l, 1l, 1l));
+
+      `OpTypeVoid t_void;
+      `OpTypeFunction (t_func, t_void, []);
+
+      `OpTypeInt (t_int, 32l, 1l)
+    ] in
+
+    let build_op_statement identifier =
+      `OpConstant (t_int, identifier, BigInt (Big_int.big_int_of_int 256))
+    in
+
+    let base_asm_source = "
+                      OpCapability Shader
+                      OpMemoryModel Logical Simple
+                      OpEntryPoint GLCompute "^id func^" \"f\"
+                      OpExecutionMode "^id func^" LocalSize 1 1 1
+
+"^id t_void^"       = OpTypeVoid
+"^id t_func^"       = OpTypeFunction "^id t_void^"
+
+"^id t_int^"        = OpTypeInt 32 1"
+    in
+
+    let build_asm_statement identifier =
+      id identifier^" = OpConstant "^id t_int^" 256"
+    in
+
+    let build_statements fn max =
+      let rec loop i =
+        if i > max then [] else fn (Int32.add statement_base_id i) :: loop (Int32.add i 1l)
+      in
+      loop 0l
+    in
+
+    let ops = base_ops @ build_statements build_op_statement statement_count in
+    let asm_source = base_asm_source ^ "\n" ^ (String.concat "\n" @@ build_statements build_asm_statement statement_count) in
+
+    (ops, asm_source)
+  );
   ("copy.spv", fun () ->
     let func = 1l in
     let v_in = 2l in
@@ -27,8 +141,6 @@ let binary_comparison_set_creators =[
     let out_p = 21l in
     let input = 22l in
 
-    let id n = "%" ^ (string_of_int @@ Int32.to_int n) in
-
     [
       `OpCapability CapabilityShader;
       `OpMemoryModel (AddressingModelLogical, MemoryModelSimple);
@@ -48,8 +160,8 @@ let binary_comparison_set_creators =[
       `OpTypeFunction (t_func, t_void, []);
       `OpTypeInt (t_int, 32l, 1l);
 
-      `OpConstant (c_zero, t_int, BigInt (Big_int.big_int_of_int 0));
-      `OpConstant (c_in_sz, t_int, BigInt (Big_int.big_int_of_int 2048));
+      `OpConstant (t_int, c_zero, BigInt (Big_int.big_int_of_int 0));
+      `OpConstant (t_int, c_in_sz, BigInt (Big_int.big_int_of_int 2048));
 
       `OpTypeArray (t_in_arr, t_int, c_in_sz);
       `OpTypeStruct (t_struct, [t_in_arr]);
@@ -59,17 +171,17 @@ let binary_comparison_set_creators =[
       `OpTypePointer (t_in_vec_p, StorageClassInput, t_vec);
       `OpTypePointer (t_in_int_p, StorageClassInput, t_int);
 
-      `OpVariable (v_in, t_u_struct_p, StorageClassUniform, None);
-      `OpVariable (v_out, t_u_struct_p, StorageClassUniform, None);
-      `OpVariable (v_g_index, t_in_vec_p, StorageClassInput, None);
+      `OpVariable (t_u_struct_p, v_in, StorageClassUniform, None);
+      `OpVariable (t_u_struct_p, v_out, StorageClassUniform, None);
+      `OpVariable (t_u_struct_p, v_g_index, StorageClassInput, None);
 
-      `OpFunction (func, t_void, FunctionControlNone, t_func);
+      `OpFunction (t_void, func, FunctionControlNone, t_func);
       `OpLabel label;
-      `OpAccessChain (g_index_p, t_in_int_p, v_g_index, [c_zero]);
-      `OpLoad (g_index, t_int, g_index_p, None);
-      `OpAccessChain (in_p, t_u_int_p, v_in, [c_zero; g_index]);
-      `OpAccessChain (out_p, t_u_int_p, v_out, [c_zero; g_index]);
-      `OpLoad (input, t_int, in_p, None);
+      `OpAccessChain (t_in_int_p, g_index_p, v_g_index, [c_zero]);
+      `OpLoad (t_int, g_index, g_index_p, None);
+      `OpAccessChain (t_u_int_p, in_p, v_in, [c_zero; g_index]);
+      `OpAccessChain (t_u_int_p, out_p, v_out, [c_zero; g_index]);
+      `OpLoad (t_int, input, in_p, None);
       `OpStore (out_p, input, None);
       `OpReturn;
       `OpFunctionEnd
@@ -105,7 +217,7 @@ let binary_comparison_set_creators =[
 
 "^id v_in^"         = OpVariable "^id t_u_struct_p^" Uniform
 "^id v_out^"        = OpVariable "^id t_u_struct_p^" Uniform
-"^id v_g_index^"    = OpVariable "^id t_in_vec_p^" Input
+"^id v_g_index^"    = OpVariable "^id t_u_struct_p^" Input
 
 "^id func^"         = OpFunction "^id t_void^" None "^id t_func^"
 "^id label^"        = OpLabel
@@ -123,15 +235,57 @@ let binary_comparison_set_creators =[
 
 let string_of_word = Printf.sprintf "0x%08lx"
 
-let string_of_words words =
-  String.concat "\n" @@ List.map string_of_word words
+let pp_diff_words f (words_a, words_b) =
+  let open Format in
+  let mark a b = if a = b then "O" else "X" in
+  let rec loop = function
+    | (ah :: at, bh :: bt) ->
+      pp_print_string f ("| " ^ mark ah bh ^ " | " ^ string_of_word ah ^ " | " ^ string_of_word bh ^ " |");
+      pp_force_newline f ();
+      loop (at, bt)
+    | (ah :: at, [])       ->
+      pp_print_string f ("| X | " ^ string_of_word ah ^ " |            |");
+      pp_force_newline f ();
+      loop (at, [])
+    | ([], bh :: bt)       ->
+      pp_print_string f ("| X |            | " ^ string_of_word bh ^ " |");
+      pp_force_newline f ();
+      loop ([], bt)
+    | ([], [])             -> ()
+  in
+  let cap = "===============================" in
+  pp_force_newline f ();
+  pp_print_string f cap;
+  pp_force_newline f ();
+  pp_print_string f "|   |  Expected  |   Actual   |";
+  pp_force_newline f ();
+  pp_print_string f cap;
+  pp_force_newline f ();
+  loop (words_a, words_b);
+  pp_print_string f cap;
+  pp_force_newline f ()
+
+(*
+let disassemble_words words =
+  let rec write_words ch = function
+    | h :: t -> (IO.write_real_i32 ch h; write_words ch t)
+    | []     -> ()
+  in
+
+  let (in_ch, out_ch) = Unix.open_process "spirv-dis --raw-id -" in
+  write_words out_ch words;
+  let str = IO.read_all in_ch in
+  if Unix.close_process (in_ch, out_ch) = Unix.WEXITED 0 then
+    str
+  else
+    "Disassembly error: " ^ str
+*)
 
 let build_binary_comparison_test (name, fn) =
   let (ops, asm_source) = fn () in
   let rec read_all_with fn ch =
     try
       let value = fn ch in
-      Printf.printf "%ld" value;
       value :: read_all_with fn ch
     with
       | IO.No_more_input -> []
@@ -142,15 +296,20 @@ let build_binary_comparison_test (name, fn) =
     | Unix.WSIGNALED n -> assert_failure (Printf.sprintf "spirv-as was killed by signal with exit code %d" n)
     | Unix.WSTOPPED n  -> assert_failure (Printf.sprintf "spirv-as was stopped by signal with exit code %d" n)
   in
+  let fix_generator_code = function
+    | (ma :: (va :: (ga :: ta)), mb :: (vb :: (gb :: tb))) ->
+        (ma :: (va :: (ga :: ta)), mb :: (vb :: (ga :: tb)))
+    | _ -> failwith "trim_gen_code called on invalid list"
+  in
   name >:: fun _ -> begin
     let op_words = compile_to_words ops in
     (* let (in_ch, out_ch) = Unix.open_process (Printf.sprintf "echo '%s'spirv-as -o - -" asm_source) in *)
-    Printf.printf "echo '%s' | spirv-as -o - -" asm_source;
     let in_ch = Unix.open_process_in (Printf.sprintf "echo '%s' | spirv-as -o - -" asm_source) in
     (* IO.write_string out_ch asm_source; *)
     let asm_words = read_all_with IO.read_real_i32 in_ch in
     check_status @@ Unix.close_process_in in_ch;
-    assert_equal ~printer:string_of_words op_words asm_words
+    let (op_words, asm_words) = fix_generator_code (op_words, asm_words) in
+    assert_equal ~pp_diff:pp_diff_words op_words asm_words
   end
 
 let suite = "SpirV" >::: [
