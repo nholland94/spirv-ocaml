@@ -44,11 +44,17 @@ and spv_instruction =
     instruction_operands: spv_operand list;
     instruction_capabilities: string list }
 
+type spv_spec_op_constant_info =
+  { spec_op_name: string;
+    spec_op_operands: spv_operand list;
+    spec_op_instruction_code: int }
+
 type spv_info =
   { magic_number: string;
     version: int * int;
     kinds: spv_kind list;
-    instructions: spv_instruction list }
+    instructions: spv_instruction list;
+    spec_op_constants: spv_spec_op_constant_info list }
 
 module Util = struct
   let mutate_head fn = function
@@ -63,6 +69,11 @@ module Util = struct
   let rec list_get n = function
     | h :: t -> if n = 0 then h else list_get (n - 1) t
     | []     -> failwith "list_get out of bounds"
+
+  let rec remove_last_el = function
+    | [_]    -> []
+    | h :: t -> h :: remove_last_el t
+    | []     -> failwith "remove_last_el called on empty list"
 
   let generate_names n =
     let iota n =
@@ -122,6 +133,12 @@ module Parsing = struct
     | "LiteralSpecConstantOpInteger"  -> LiteralSpecConstantOpInteger
     | _ as kind                       -> failwith ("unhandled spv kind: " ^ kind)
 
+  (* this is a hack to reformat OpExtInst's operands to fit the pattern of OpSpecConstantOp *)
+  let transform_operands name operands =
+    match name with
+      | "OpExtInst" -> Util.remove_last_el operands
+      | _           -> operands
+
   let opt_member fn key obj =
     if List.mem key (keys obj) then
       Some (fn @@ member key obj)
@@ -172,7 +189,8 @@ module Parsing = struct
   let destruct_instruction kinds obj =
     let name = to_string @@ member "opname" obj in
     let code = to_int @@ member "opcode" obj in
-    let operands = List.map (destruct_operand kinds) @@ opt_ls_member "operands" obj in
+    let filtered_operands_obj = transform_operands name @@ opt_ls_member "operands" obj in
+    let operands = List.map (destruct_operand kinds) filtered_operands_obj in
     let capabilities = List.map to_string @@ opt_ls_member "capabilities" obj in
     { instruction_name = name;
       instruction_code = code;
@@ -255,18 +273,37 @@ module Parsing = struct
     in
     List.map conv_enum kinds
 
-  let parse json =
-    let magic_number = to_string @@ member "magic_number" json in
-    let major_version = to_int @@ member "major_version" json in
-    let minor_version = to_int @@ member "minor_version" json in
-    let kind_objs = to_list @@ member "operand_kinds" json in
-    let instruction_objs = to_list @@ member "instructions" json in
+  let construct_spec_op_constant_info instructions op_name =
+    let rec chomp_result_operands = function
+      | { operand_kind = Type ("IdResultType", _, _); _ } :: t
+      | { operand_kind = Type ("IdResult", _, _); _ } :: t     ->
+          chomp_result_operands t
+      | _ as ops -> ops
+    in
+
+    let truncated_op_name = String.sub op_name 2 (String.length op_name - 2) in
+    let instruction = List.find (fun i -> i.instruction_name = op_name) instructions in
+    let operands = chomp_result_operands instruction.instruction_operands in
+    { spec_op_name = truncated_op_name;
+      spec_op_operands = operands;
+      spec_op_instruction_code = instruction.instruction_code }
+
+  let parse core_json supplemental_json =
+    let magic_number = to_string @@ member "magic_number" core_json in
+    let major_version = to_int @@ member "major_version" core_json in
+    let minor_version = to_int @@ member "minor_version" core_json in
+    let kind_objs = to_list @@ member "operand_kinds" core_json in
+    let instruction_objs = to_list @@ member "instructions" core_json in
+    let spec_op_constants = List.map to_string @@ to_list @@ member "spec_op_constants" supplemental_json in
     let spv_kinds = wire_enum_parameters @@ List.map destruct_kind kind_objs in
     let spv_instructions = List.map (destruct_instruction spv_kinds) instruction_objs in
+    let spv_spec_op_constants = List.map (construct_spec_op_constant_info spv_instructions) spec_op_constants in
     { magic_number = magic_number;
       version = (major_version, minor_version);
       kinds = spv_kinds;
-      instructions = spv_instructions }
+      instructions = spv_instructions;
+      spec_op_constants = spv_spec_op_constants }
+
 end
 
 
@@ -402,56 +439,17 @@ module Templates = struct
     | vec      -> TyTup (_loc, cons_sta vec)
 end
 
+type list_or_sca = List | Scalar
+type words_exp = list_or_sca * expr
+
 let rec ocaml_types_of_spv_type = function
   | Id                            -> ["id"]
   | LiteralInteger                -> ["int32"]
   | LiteralContextDependentNumber -> ["big_int_or_float"]
-  | LiteralExtInstInteger
-  | LiteralSpecConstantOpInteger  -> ["int"]
+  | LiteralExtInstInteger         -> ["ext_inst_fn"] (* TODO *)
+  | LiteralSpecConstantOpInteger  -> ["spec_op"]
   | LiteralString                 -> ["string"]
   | Composite ls                  -> List.concat @@ List.map ocaml_types_of_spv_type ls
-
-let build_kind_typedef (name, t) =
-  let type_name = ocaml_types_of_spv_type t in
-  let tuple = Templates.type_sta_tuple_of_ls @@ List.map Templates.ty_id_lid type_name in
-  Templates.typedef name tuple
-
-let build_enum_typedef (name, _, enumerants) =
-  let parameters_ast params =
-    let kind_name_of_parameter p = p.parameter_kind_name in
-    Templates.type_tuple_of_ls @@ List.map (Templates.ty_id_lid <=< kind_name_of_parameter) params
-  in
-  let convert_parameters = function
-    | []     -> None
-    | _ as p -> Some (parameters_ast p)
-  in
-  let convert_variant enum = (enum.enumerant_name, convert_parameters enum.enumerant_parameters) in
-  let variants = Templates.variants @@ List.map convert_variant enumerants in
-  Templates.typedef name variants
-
-let build_op_typedef instructions =
-  let operands_ast operands =
-    let list_of_operand = function
-      | { operand_kind = kind; quantifier = Some Optional; _ } -> ["option"; Util.ocaml_name_of_kind kind]
-      | { operand_kind = kind; quantifier = Some Variadic; _ } -> ["list"; Util.ocaml_name_of_kind kind]
-      | { operand_kind = kind; quantifier = None; _ }          -> [Util.ocaml_name_of_kind kind]
-    in
-
-    let operand_lists = List.map list_of_operand operands in
-    let operand_asts = List.map Templates.type_app_of_ls operand_lists in
-    Templates.type_tuple_of_ls operand_asts
-  in
-
-  let convert_variant = function
-    | { instruction_operands = []; instruction_name = name } -> (name, None)
-    | { instruction_operands = ls; instruction_name = name } -> (name, Some (operands_ast ls))
-  in
-
-  let variants = Templates.polymorphic_variants @@ List.map convert_variant instructions in
-  Templates.typedef "op" variants
-
-type list_or_sca = List | Scalar
-type words_exp = list_or_sca * expr
 
 (* TODO: add missing cases *)
 let exp_type_of_kind = function
@@ -471,12 +469,55 @@ let conversion_fn_of_kind = function
   | Type (_, _, Id)                            -> <:expr< word_of_id >>
   | Type (_, _, LiteralInteger)                -> <:expr< word_of_int >>
   | Type (_, _, LiteralContextDependentNumber) -> <:expr< words_of_context_dependent_number (lookup_size a) >>
-  | Type (_, _, LiteralExtInstInteger)         -> <:expr< todo >>
-  | Type (_, _, LiteralSpecConstantOpInteger)  -> <:expr< todo >>
+  | Type (_, _, LiteralExtInstInteger)         -> <:expr< fun f -> f () >>
+  | Type (_, _, LiteralSpecConstantOpInteger)  -> <:expr< words_of_spec_op >>
   | Type (_, _, LiteralString)                 -> <:expr< words_of_string >>
   | Type (_, name, Composite _)
   | Enum (_, name, (_, Parameterized),  _)     -> Templates.ex_id_lid @@ "words_of_" ^ name
   | Enum (_, name, (_, NonParameterized),  _)  -> Templates.ex_id_lid @@ "word_of_" ^ name
+
+let build_kind_typedef (name, t) =
+  let type_name = ocaml_types_of_spv_type t in
+  let tuple = Templates.type_sta_tuple_of_ls @@ List.map Templates.ty_id_lid type_name in
+  Templates.typedef name tuple
+
+let build_enum_typedef (name, _, enumerants) =
+  let parameters_ast params =
+    let kind_name_of_parameter p = p.parameter_kind_name in
+    Templates.type_tuple_of_ls @@ List.map (Templates.ty_id_lid <=< kind_name_of_parameter) params
+  in
+  let convert_parameters = function
+    | []     -> None
+    | _ as p -> Some (parameters_ast p)
+  in
+  let convert_variant enum = (enum.enumerant_name, convert_parameters enum.enumerant_parameters) in
+  let variants = Templates.variants @@ List.map convert_variant enumerants in
+  Templates.typedef name variants
+
+let type_tuple_of_operands operands = 
+  let list_of_operand = function
+    | { operand_kind = kind; quantifier = Some Optional; _ } -> ["option"; Util.ocaml_name_of_kind kind]
+    | { operand_kind = kind; quantifier = Some Variadic; _ } -> ["list"; Util.ocaml_name_of_kind kind]
+    | { operand_kind = kind; quantifier = None; _ }          -> [Util.ocaml_name_of_kind kind]
+  in
+
+  let operand_lists = List.map list_of_operand operands in
+  let operand_asts = List.map Templates.type_app_of_ls operand_lists in
+  Templates.type_tuple_of_ls operand_asts
+
+let build_operands_type_opt = function
+  | []       -> None
+  | operands -> Some (type_tuple_of_operands operands)
+
+let build_op_typedef instructions =
+  let cons_variant i = (i.instruction_name, build_operands_type_opt i.instruction_operands) in
+  let variants = Templates.polymorphic_variants @@ List.map cons_variant instructions in
+  Templates.typedef "op" variants
+
+let build_spec_op_typedef spec_ops =
+  let cons_variant so = (so.spec_op_name, build_operands_type_opt so.spec_op_operands) in
+  let variants = Templates.polymorphic_variants @@ List.map cons_variant spec_ops in
+  Templates.typedef "spec_op" variants
 
 let words_exp_of_operand (op, binding) =
   let { operand_kind = kind; quantifier = quantifier; _ } = op in
@@ -560,7 +601,7 @@ let build_words_of_op_fn instructions =
   let patterns = Templates.match_cases Templates.LabelVariant @@ List.map match_case_of_instruction instructions in
 
   <:str_item<
-    let words_and_id_of_op : int IdMap.t -> op -> int IdMap.t * id option * word list = fun size_map op ->
+    let rec words_and_id_of_op : int IdMap.t -> op -> int IdMap.t * id option * word list = fun size_map op ->
       let lookup_size = fun (id : id) ->
         if IdMap.mem id size_map then
           IdMap.find id size_map
@@ -573,6 +614,29 @@ let build_words_of_op_fn instructions =
         Int32.logor code (Int32.of_int shifted_word_count) :: operand_words
       in
       match op with $patterns$
+  >>
+
+let build_words_of_spec_op_fn spec_ops =
+  let match_case_of_spec_op spec_op =
+    let code_exp = Templates.ex_int @@ (Printf.sprintf "0x%04xl" spec_op.spec_op_instruction_code) in
+    let operand_names = Util.generate_names (List.length spec_op.spec_op_operands) in
+    let operand_bindings = List.map Templates.ex_id_lid operand_names in
+    let operand_words_exps = List.map words_exp_of_operand @@ List.combine spec_op.spec_op_operands operand_bindings in
+    let operand_words_exp = 
+      if List.length operand_words_exps > 0 then
+        let exp = concat_words_exps operand_words_exps in
+        <:expr< $code_exp$ :: $exp$ >>
+      else
+        <:expr< [$code_exp$] >>
+    in
+    ((spec_op.spec_op_name, operand_names), operand_words_exp)
+  in
+
+  let patterns = Templates.match_cases Templates.LabelVariant @@ List.map match_case_of_spec_op spec_ops in
+
+  <:str_item<
+    let rec words_of_spec_op : spec_op -> word list = fun spec_op ->
+      match spec_op with $patterns$
   >>
 
 let words_exp_of_enumerant_parameter (param, binding) =
@@ -643,7 +707,8 @@ module StaticElements = struct
     <:str_item< type id = int32 >>;
     <:str_item< type word = int32 >>;
     <:str_item< type big_int = Big_int.big_int >>;
-    <:str_item< type big_int_or_float = BigInt of big_int | Float of float >>
+    <:str_item< type big_int_or_float = BigInt of big_int | Float of float >>;
+    <:str_item< type ext_inst_fn = unit -> word list >>
   ]
 
   (* TODO: generate these *)
@@ -748,9 +813,6 @@ module StaticElements = struct
      * TODO: file bug report
      *)
     <:str_item<
-      let todo _ = failwith "TODO"
-    >>;
-    <:str_item<
       let list_of_option = fun (opt : 'a option) ->
         match opt with
           | Some v -> [v]
@@ -819,6 +881,18 @@ let pack_version (major, minor) =
   let minor_mask = shift_left (logand minor_i32 0x03l) 8 in
   logor major_mask minor_mask
 
+let st_typ x = StTyp (_loc, x)
+let sg_typ x = SgTyp (_loc, x)
+
+let join_typedefs typedefs wrapper =
+  let rec cons_typedefs = function
+    | [StTyp (_, dcl)]    -> dcl
+    | StTyp (_, dcl) :: t -> TyAnd (_loc, dcl, cons_typedefs t)
+    | []     -> failwith "cannot join_typedefs on empty list"
+    | _      -> failwith "non typedef str_item in join_typedefs"
+  in
+  wrapper @@ cons_typedefs typedefs
+
 let generate_implementation output info =
   let (enums, types) = Util.filter_kinds info.kinds in
   let enums = defer_decoration_enum enums in
@@ -828,10 +902,17 @@ let generate_implementation output info =
   List.iter output StaticElements.exception_definitions;
 
   (* typedefs *)
-  List.iter output StaticElements.type_definitions;
-  List.iter (output <=< build_kind_typedef) types;
-  List.iter (output <=< build_enum_typedef) enums;
-  output @@ build_op_typedef info.instructions;
+  let typedefs =
+    StaticElements.type_definitions @
+    List.map build_kind_typedef types @
+    List.map build_enum_typedef enums @
+    [
+      build_op_typedef info.instructions;
+      build_spec_op_typedef info.spec_op_constants
+    ]
+  in
+
+  output @@ join_typedefs typedefs st_typ;
 
   (* values *)
   let magic_number_exp = Templates.ex_int (info.magic_number ^ "l") in
@@ -852,6 +933,7 @@ let generate_implementation output info =
   List.iter output StaticElements.conversion_functions;
   List.iter output StaticElements.lazy_definitions;
   List.iter output @@ List.map build_enum_value_fn enums;
+  output @@ build_words_of_spec_op_fn info.spec_op_constants;
   output @@ build_words_of_op_fn info.instructions;
   List.iter output StaticElements.interfaces
 
@@ -870,10 +952,17 @@ let generate_interface output info =
   List.iter output @@ List.map cast_sig StaticElements.exception_definitions;
 
   (* typedefs *)
-  List.iter output @@ List.map cast_sig StaticElements.type_definitions;
-  List.iter (output <=< cast_sig <=< build_kind_typedef) types;
-  List.iter (output <=< cast_sig <=< build_enum_typedef) enums;
-  output @@ cast_sig @@ build_op_typedef info.instructions;
+  let typedefs =
+    StaticElements.type_definitions @
+    List.map build_kind_typedef types @
+    List.map build_enum_typedef enums @
+    [
+      build_op_typedef info.instructions;
+      build_spec_op_typedef info.spec_op_constants
+    ]
+  in
+
+  output @@ join_typedefs typedefs sg_typ;
 
   List.iter output StaticElements.vals
 
@@ -886,9 +975,12 @@ let () =
     | _        -> failwith "Invalid argument"
   in
 
-  let in_ch = open_in "spirv.core.grammar.json" in
-  let json = Yojson.Basic.from_channel in_ch in
-  let spirv_info = Parsing.parse json in
-  close_in in_ch;
+  let core_grammar_ch = open_in "spirv.core.grammar.json" in
+  let supplemental_data_ch = open_in "spirv.supplemental.json" in
+  let core_grammar_json = Yojson.Basic.from_channel core_grammar_ch in
+  let supplemental_data_json = Yojson.Basic.from_channel supplemental_data_ch in
+  let spirv_info = Parsing.parse core_grammar_json supplemental_data_json in
+  close_in supplemental_data_ch;
+  close_in core_grammar_ch;
 
   generator spirv_info

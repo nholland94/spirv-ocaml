@@ -3,3 +3,4 @@
 *.byte
 *.out
 oUnit-*
+test_results

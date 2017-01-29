@@ -13,9 +13,9 @@ let cons_big_int ls =
   in
   loop (List.length ls - 1) ls
 
-let binary_comparison_set_creators =[
+let binary_comparison_set_creators : (string * (unit -> op list * string)) list = [
   (* TODO test unsigned constants *)
-  ("constant values", fun () ->
+  ("signed integer values", fun () ->
     let func = 1l in
     let t_void = 2l in
     let t_func = 3l in
@@ -61,6 +61,141 @@ let binary_comparison_set_creators =[
 "^id c_int_40_1^"   = OpConstant "^id t_int_40^" 400
 "^id c_int_40_2^"   = OpConstant "^id t_int_40^" 68719411455
 "^id c_int_64_1^"   = OpConstant "^id t_int_64^" 71793711247196287
+    "
+  );
+  (*
+  ("signed integer values", fun () ->
+  );
+  ("floating point values", fun () ->
+  );
+  *)
+  ("string values", fun () ->
+    let func = 1l in
+    let t_void = 2l in
+    let t_func = 3l in
+    let s_1 = 4l in
+    let s_2 = 5l in
+    let s_3 = 6l in
+    let s_4 = 7l in
+    let s_5 = 8l in
+    let s_6 = 9l in
+    let s_7 = 10l in
+    let s_8 = 11l in
+    let s_9 = 12l in
+
+    [
+      `OpCapability CapabilityShader;
+      `OpMemoryModel (AddressingModelLogical, MemoryModelSimple);
+      `OpEntryPoint (ExecutionModelGLCompute, func, "f", []);
+      `OpExecutionMode (func, ExecutionModeLocalSize (1l, 1l, 1l));
+
+      `OpTypeVoid t_void;
+      `OpTypeFunction (t_func, t_void, []);
+    ], "
+                      OpCapability Shader
+                      OpMemoryModel Logical Simple
+                      OpEntryPoint GLCompute "^id func^" \"f\"
+                      OpExecutionMode "^id func^" LocalSize 1 1 1
+
+"^id s_1^"          = OpString \"a\"
+"^id s_2^"          = OpString \"ab\"
+"^id s_3^"          = OpString \"abc\"
+"^id s_4^"          = OpString \"abcd\"
+"^id s_5^"          = OpString \"abcde\"
+"^id s_6^"          = OpString \"abcdef\"
+"^id s_7^"          = OpString \"abcdefg\"
+"^id s_8^"          = OpString \"abcdefgh\"
+"^id s_9^"          = OpString \"this is a really long string\"
+
+"^id t_void^"       = OpTypeVoid
+"^id t_func^"       = OpTypeFunction "^id t_void^"
+    "
+  );
+  ("specialization operations", fun () ->
+    let func = 1l in
+    let t_void = 2l in
+    let t_func = 3l in
+    let t_int = 4l in
+    let c_a = 5l in
+    let c_b = 6l in
+    let c_c = 7l in
+
+    [
+      `OpCapability CapabilityShader;
+      `OpMemoryModel (AddressingModelLogical, MemoryModelSimple);
+      `OpEntryPoint (ExecutionModelGLCompute, func, "f", []);
+      `OpExecutionMode (func, ExecutionModeLocalSize (1l, 1l, 1l));
+
+      `OpTypeVoid t_void;
+      `OpTypeFunction (t_func, t_void, []);
+
+      `OpTypeInt (t_int, 32l, 1l);
+
+      `OpConstant (t_int, c_a, BigInt (Big_int.of_int 100));
+      `OpConstant (t_int, c_b, BigInt (Big_int.of_int 200));
+
+      `OpSpecConstantOp (t_int, c_c, `IAdd (c_a, c_b))
+    ], "
+                      OpCapability Shader
+                      OpMemoryModel Logical Simple
+                      OpEntryPoint GLCompute "^id func^" \"f\"
+                      OpExecutionMode "^id func^" LocalSize 1 1 1
+
+"^id t_void^"       = OpTypeVoid
+"^id t_func^"       = OpTypeFunction "^id t_void^"
+
+"^id t_int^"        = OpTypeInt 32 1
+
+"^id c_a^"          = OpConstant "^id t_int^" 100
+"^id c_b^"          = OpConstant "^id t_int^" 200
+
+"^id c_c^"          = OpSpecConstantOp "^id t_int^" IAdd "^id c_a^" "^id c_b^"
+    "
+  );
+  ("extended instructions", fun () ->
+    let glsl = 1l in
+    let func = 2l in
+    let t_void = 3l in
+    let t_func = 4l in
+    let t_int = 5l in
+    let c_9 = 6l in
+    let label = 7l in
+    let r = 8l in
+
+    [
+      `OpCapability CapabilityShader;
+      `OpExtInstImport (glsl, "GLSL.std.450");
+      `OpMemoryModel (AddressingModelLogical, MemoryModelSimple);
+      `OpEntryPoint (ExecutionModelGLCompute, func, "f", []);
+      `OpExecutionMode (func, ExecutionModeLocalSize (1l, 1l, 1l));
+
+      `OpTypeVoid t_void;
+      `OpTypeFunction (t_func, t_void, []);
+
+      `OpTypeInt (t_int, 32l, 1l);
+
+      `OpConstant (t_int, c_9, BigInt (Big_int.of_int 9));
+
+      `OpFunction (t_void, func, FunctionControlNone, t_func);
+      `OpLabel label;
+      `OpExtInst (t_int, r, glsl, fun () -> [0x0001l; c_9]);
+    ], "
+                      OpCapability Shader
+"^id glsl^"         = OpExtInstImport \"GLSL.std.450\"
+                      OpMemoryModel Logical Simple
+                      OpEntryPoint GLCompute "^id func^" \"f\"
+                      OpExecutionMode "^id func^" LocalSize 1 1 1
+
+"^id t_void^"       = OpTypeVoid
+"^id t_func^"       = OpTypeFunction "^id t_void^"
+
+"^id t_int^"        = OpTypeInt 32 1
+
+"^id c_9^"          = OpConstant "^id t_int^" 9
+
+"^id func^"         = OpFunction "^id t_void^" None "^id t_func^"
+"^id label^"        = OpLabel
+"^id r^"            = OpExtInst "^id t_int^" "^id glsl^" Sqrt "^id c_9^"
     "
   );
   ("very large program", fun () ->
@@ -233,9 +368,18 @@ let binary_comparison_set_creators =[
   );
 ]
 
+(*
+let validation_exception_set_creators = [
+  ("result types must be defined", fun () ->
+    [
+    ], Id_not_defined (t_int)
+  )
+];
+*)
+
 let string_of_word = Printf.sprintf "0x%08lx"
 
-let pp_diff_words f (words_a, words_b) =
+let pp_diff_words f (expected, actual) =
   let open Format in
   let mark a b = if a = b then "O" else "X" in
   let rec loop = function
@@ -261,7 +405,7 @@ let pp_diff_words f (words_a, words_b) =
   pp_force_newline f ();
   pp_print_string f cap;
   pp_force_newline f ();
-  loop (words_a, words_b);
+  loop (expected, actual);
   pp_print_string f cap;
   pp_force_newline f ()
 
@@ -309,11 +453,18 @@ let build_binary_comparison_test (name, fn) =
     let asm_words = read_all_with IO.read_real_i32 in_ch in
     check_status @@ Unix.close_process_in in_ch;
     let (op_words, asm_words) = fix_generator_code (op_words, asm_words) in
-    assert_equal ~pp_diff:pp_diff_words op_words asm_words
+    assert_equal ~pp_diff:pp_diff_words asm_words op_words
   end
 
+(*
+let build_validation_exception_test (name, fn) =
+  let (ops, expected_error) = fn () in
+  name >:: fun _ -> assert_raises expected_error (fun () -> compile_to_words ops)
+*)
+
 let suite = "SpirV" >::: [
-  "binary_comparisons" >::: List.map build_binary_comparison_test binary_comparison_set_creators
+  "binary comparisons" >::: List.map build_binary_comparison_test binary_comparison_set_creators
+  (* "validation exceptions" >::: List.map build_validation_exception_test validation_exception_set_creators *)
 ]
 
 let _ = run_test_tt_main suite

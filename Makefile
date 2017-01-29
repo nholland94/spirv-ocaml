@@ -1,7 +1,7 @@
 all: SpirV.cmi SpirV.cmo
 
 test: SpirVTest.byte
-	./SpirVTest.byte
+	./SpirVTest.byte -output-html-dir test_results
 
 clean:
 	rm -f *.cmi *.cmx *.cmo *.o Generator.byte SpirV.ml SpirV.mli

@@ -1,24 +1,44 @@
 open Batteries;;
 module IdMap = Map.Make(Int32);;
 exception Id_not_found of Int32.t;;
-type id = int32;;
-type word = int32;;
-type big_int = Big_int.big_int;;
-type big_int_or_float = | BigInt of big_int | Float of float;;
-type id_result_type = id;;
-type id_result = id;;
-type id_memory_semantics = id;;
-type id_scope = id;;
-type id_ref = id;;
-type literal_integer = int32;;
-type literal_string = string;;
-type literal_context_dependent_number = big_int_or_float;;
-type literal_ext_inst_integer = int;;
-type literal_spec_constant_op_integer = int;;
-type pair_literal_integer_id_ref = (int32 * id);;
-type pair_id_ref_literal_integer = (id * int32);;
-type pair_id_ref_id_ref = (id * id);;
-type image_operands =
+type id =
+  int32
+  and word =
+  int32
+  and big_int =
+  Big_int.
+  big_int
+  and big_int_or_float =
+  | BigInt of big_int | Float of float
+  and ext_inst_fn =
+  unit -> word list
+  and id_result_type =
+  id
+  and id_result =
+  id
+  and id_memory_semantics =
+  id
+  and id_scope =
+  id
+  and id_ref =
+  id
+  and literal_integer =
+  int32
+  and literal_string =
+  string
+  and literal_context_dependent_number =
+  big_int_or_float
+  and literal_ext_inst_integer =
+  ext_inst_fn
+  and literal_spec_constant_op_integer =
+  spec_op
+  and pair_literal_integer_id_ref =
+  (int32 * id)
+  and pair_id_ref_literal_integer =
+  (id * int32)
+  and pair_id_ref_id_ref =
+  (id * id)
+  and image_operands =
   ImageOperandsNone
   | ImageOperandsBias of id_ref
   | ImageOperandsLod of id_ref
@@ -27,31 +47,31 @@ type image_operands =
   | ImageOperandsOffset of id_ref
   | ImageOperandsConstOffsets of id_ref
   | ImageOperandsSample of id_ref
-  | ImageOperandsMinLod of id_ref;;
-type f_p_fast_math_mode =
+  | ImageOperandsMinLod of id_ref
+  and f_p_fast_math_mode =
   FPFastMathModeNone
   | FPFastMathModeNotNaN
   | FPFastMathModeNotInf
   | FPFastMathModeNSZ
   | FPFastMathModeAllowRecip
-  | FPFastMathModeFast;;
-type selection_control =
+  | FPFastMathModeFast
+  and selection_control =
   SelectionControlNone
   | SelectionControlFlatten
-  | SelectionControlDontFlatten;;
-type loop_control =
+  | SelectionControlDontFlatten
+  and loop_control =
   LoopControlNone
   | LoopControlUnroll
   | LoopControlDontUnroll
   | LoopControlDependencyInfinite
-  | LoopControlDependencyLength of literal_integer;;
-type function_control =
+  | LoopControlDependencyLength of literal_integer
+  and function_control =
   FunctionControlNone
   | FunctionControlInline
   | FunctionControlDontInline
   | FunctionControlPure
-  | FunctionControlConst;;
-type memory_semantics =
+  | FunctionControlConst
+  and memory_semantics =
   MemorySemanticsRelaxed
   | MemorySemanticsNone
   | MemorySemanticsAcquire
@@ -63,38 +83,38 @@ type memory_semantics =
   | MemorySemanticsWorkgroupMemory
   | MemorySemanticsCrossWorkgroupMemory
   | MemorySemanticsAtomicCounterMemory
-  | MemorySemanticsImageMemory;;
-type memory_access =
+  | MemorySemanticsImageMemory
+  and memory_access =
   MemoryAccessNone
   | MemoryAccessVolatile
   | MemoryAccessAligned of literal_integer
-  | MemoryAccessNontemporal;;
-type kernel_profiling_info =
+  | MemoryAccessNontemporal
+  and kernel_profiling_info =
   KernelProfilingInfoNone
-  | KernelProfilingInfoCmdExecTime;;
-type source_language =
+  | KernelProfilingInfoCmdExecTime
+  and source_language =
   SourceLanguageUnknown
   | SourceLanguageESSL
   | SourceLanguageGLSL
   | SourceLanguageOpenCL_C
-  | SourceLanguageOpenCL_CPP;;
-type execution_model =
+  | SourceLanguageOpenCL_CPP
+  and execution_model =
   ExecutionModelVertex
   | ExecutionModelTessellationControl
   | ExecutionModelTessellationEvaluation
   | ExecutionModelGeometry
   | ExecutionModelFragment
   | ExecutionModelGLCompute
-  | ExecutionModelKernel;;
-type addressing_model =
+  | ExecutionModelKernel
+  and addressing_model =
   AddressingModelLogical
   | AddressingModelPhysical32
-  | AddressingModelPhysical64;;
-type memory_model =
+  | AddressingModelPhysical64
+  and memory_model =
   MemoryModelSimple
   | MemoryModelGLSL450
-  | MemoryModelOpenCL;;
-type execution_mode =
+  | MemoryModelOpenCL
+  and execution_mode =
   ExecutionModeInvocations of literal_integer
   | ExecutionModeSpacingEqual
   | ExecutionModeSpacingFractionalEven
@@ -131,8 +151,8 @@ type execution_mode =
   | ExecutionModeInitializer
   | ExecutionModeFinalizer
   | ExecutionModeSubgroupSize of literal_integer
-  | ExecutionModeSubgroupsPerWorkgroup of literal_integer;;
-type storage_class =
+  | ExecutionModeSubgroupsPerWorkgroup of literal_integer
+  and storage_class =
   StorageClassUniformConstant
   | StorageClassInput
   | StorageClassUniform
@@ -144,23 +164,25 @@ type storage_class =
   | StorageClassGeneric
   | StorageClassPushConstant
   | StorageClassAtomicCounter
-  | StorageClassImage;;
-type dim =
+  | StorageClassImage
+  and dim =
   Dim1D
   | Dim2D
   | Dim3D
   | DimCube
   | DimRect
   | DimBuffer
-  | DimSubpassData;;
-type sampler_addressing_mode =
+  | DimSubpassData
+  and sampler_addressing_mode =
   SamplerAddressingModeNone
   | SamplerAddressingModeClampToEdge
   | SamplerAddressingModeClamp
   | SamplerAddressingModeRepeat
-  | SamplerAddressingModeRepeatMirrored;;
-type sampler_filter_mode = SamplerFilterModeNearest | SamplerFilterModeLinear;;
-type image_format =
+  | SamplerAddressingModeRepeatMirrored
+  and sampler_filter_mode =
+  SamplerFilterModeNearest
+  | SamplerFilterModeLinear
+  and image_format =
   ImageFormatUnknown
   | ImageFormatRgba32f
   | ImageFormatRgba16f
@@ -200,8 +222,8 @@ type image_format =
   | ImageFormatRg16ui
   | ImageFormatRg8ui
   | ImageFormatR16ui
-  | ImageFormatR8ui;;
-type image_channel_order =
+  | ImageFormatR8ui
+  and image_channel_order =
   ImageChannelOrderR
   | ImageChannelOrderA
   | ImageChannelOrderRG
@@ -221,8 +243,8 @@ type image_channel_order =
   | ImageChannelOrderSRGBx
   | ImageChannelOrderSRGBA
   | ImageChannelOrderSBGRA
-  | ImageChannelOrderABGR;;
-type image_channel_data_type =
+  | ImageChannelOrderABGR
+  and image_channel_data_type =
   ImageChannelDataTypeSnormInt8
   | ImageChannelDataTypeSnormInt16
   | ImageChannelDataTypeUnormInt8
@@ -239,18 +261,20 @@ type image_channel_data_type =
   | ImageChannelDataTypeHalfFloat
   | ImageChannelDataTypeFloat
   | ImageChannelDataTypeUnormInt24
-  | ImageChannelDataTypeUnormInt101010_2;;
-type f_p_rounding_mode =
+  | ImageChannelDataTypeUnormInt101010_2
+  and f_p_rounding_mode =
   FPRoundingModeRTE
   | FPRoundingModeRTZ
   | FPRoundingModeRTP
-  | FPRoundingModeRTN;;
-type linkage_type = LinkageTypeExport | LinkageTypeImport;;
-type access_qualifier =
+  | FPRoundingModeRTN
+  and linkage_type =
+  LinkageTypeExport
+  | LinkageTypeImport
+  and access_qualifier =
   AccessQualifierReadOnly
   | AccessQualifierWriteOnly
-  | AccessQualifierReadWrite;;
-type function_parameter_attribute =
+  | AccessQualifierReadWrite
+  and function_parameter_attribute =
   FunctionParameterAttributeZext
   | FunctionParameterAttributeSext
   | FunctionParameterAttributeByVal
@@ -258,8 +282,8 @@ type function_parameter_attribute =
   | FunctionParameterAttributeNoAlias
   | FunctionParameterAttributeNoCapture
   | FunctionParameterAttributeNoWrite
-  | FunctionParameterAttributeNoReadWrite;;
-type built_in =
+  | FunctionParameterAttributeNoReadWrite
+  and built_in =
   BuiltInPosition
   | BuiltInPointSize
   | BuiltInClipDistance
@@ -308,22 +332,22 @@ type built_in =
   | BuiltInSubgroupLtMaskKHR
   | BuiltInBaseVertex
   | BuiltInBaseInstance
-  | BuiltInDrawIndex;;
-type scope =
+  | BuiltInDrawIndex
+  and scope =
   ScopeCrossDevice
   | ScopeDevice
   | ScopeWorkgroup
   | ScopeSubgroup
-  | ScopeInvocation;;
-type group_operation =
+  | ScopeInvocation
+  and group_operation =
   GroupOperationReduce
   | GroupOperationInclusiveScan
-  | GroupOperationExclusiveScan;;
-type kernel_enqueue_flags =
+  | GroupOperationExclusiveScan
+  and kernel_enqueue_flags =
   KernelEnqueueFlagsNoWait
   | KernelEnqueueFlagsWaitKernel
-  | KernelEnqueueFlagsWaitWorkGroup;;
-type capability =
+  | KernelEnqueueFlagsWaitWorkGroup
+  and capability =
   CapabilityMatrix
   | CapabilityShader
   | CapabilityGeometry
@@ -384,8 +408,8 @@ type capability =
   | CapabilityNamedBarrier
   | CapabilityPipeStorage
   | CapabilitySubgroupBallotKHR
-  | CapabilityDrawParameters;;
-type decoration =
+  | CapabilityDrawParameters
+  and decoration =
   DecorationRelaxedPrecision
   | DecorationSpecId of literal_integer
   | DecorationBlock
@@ -429,8 +453,8 @@ type decoration =
   | DecorationNoContraction
   | DecorationInputAttachmentIndex of literal_integer
   | DecorationAlignment of literal_integer
-  | DecorationMaxByteOffset of literal_integer;;
-type op =
+  | DecorationMaxByteOffset of literal_integer
+  and op =
   [
     | `OpNop
     | `OpUndef of id_result_type * id_result
@@ -445,7 +469,7 @@ type op =
     | `OpExtension of literal_string
     | `OpExtInstImport of id_result * literal_string
     | `OpExtInst of id_result_type * id_result * id_ref
-                    * literal_ext_inst_integer * id_ref list
+                    * literal_ext_inst_integer
     | `OpMemoryModel of addressing_model * memory_model
     | `OpEntryPoint of execution_model * id_ref * literal_string
                        * id_ref list
@@ -849,6 +873,68 @@ type op =
     | `OpModuleProcessed of literal_string
     | `OpSubgroupBallotKHR of id_result_type * id_result * id_ref
     | `OpSubgroupFirstInvocationKHR of id_result_type * id_result * id_ref
+  ]
+  and spec_op =
+  [
+    | `SConvert of id_ref
+    | `FConvert of id_ref
+    | `SNegate of id_ref
+    | `Not of id_ref
+    | `IAdd of id_ref * id_ref
+    | `ISub of id_ref * id_ref
+    | `IMul of id_ref * id_ref
+    | `UDiv of id_ref * id_ref
+    | `SDiv of id_ref * id_ref
+    | `UMod of id_ref * id_ref
+    | `SRem of id_ref * id_ref
+    | `SMod of id_ref * id_ref
+    | `ShiftRightLogical of id_ref * id_ref
+    | `ShiftRightArithmetic of id_ref * id_ref
+    | `ShiftLeftLogical of id_ref * id_ref
+    | `BitwiseOr of id_ref * id_ref
+    | `BitwiseXor of id_ref * id_ref
+    | `BitwiseAnd of id_ref * id_ref
+    | `VectorShuffle of id_ref * id_ref * literal_integer list
+    | `CompositeExtract of id_ref * literal_integer list
+    | `CompositeInsert of id_ref * id_ref * literal_integer list
+    | `LogicalOr of id_ref * id_ref
+    | `LogicalAnd of id_ref * id_ref
+    | `LogicalNot of id_ref
+    | `LogicalEqual of id_ref * id_ref
+    | `LogicalNotEqual of id_ref * id_ref
+    | `Select of id_ref * id_ref * id_ref
+    | `IEqual of id_ref * id_ref
+    | `INotEqual of id_ref * id_ref
+    | `ULessThan of id_ref * id_ref
+    | `SLessThan of id_ref * id_ref
+    | `UGreaterThan of id_ref * id_ref
+    | `SGreaterThan of id_ref * id_ref
+    | `ULessThanEqual of id_ref * id_ref
+    | `SLessThanEqual of id_ref * id_ref
+    | `UGreaterThanEqual of id_ref * id_ref
+    | `SGreaterThanEqual of id_ref * id_ref
+    | `QuantizeToF16 of id_ref
+    | `ConvertFToS of id_ref
+    | `ConvertSToF of id_ref
+    | `ConvertFToU of id_ref
+    | `ConvertUToF of id_ref
+    | `UConvert of id_ref
+    | `ConvertPtrToU of id_ref
+    | `ConvertUToPtr of id_ref
+    | `GenericCastToPtr of id_ref
+    | `PtrCastToGeneric of id_ref
+    | `Bitcast of id_ref
+    | `FNegate of id_ref
+    | `FAdd of id_ref * id_ref
+    | `FSub of id_ref * id_ref
+    | `FMul of id_ref * id_ref
+    | `FDiv of id_ref * id_ref
+    | `FRem of id_ref * id_ref
+    | `FMod of id_ref * id_ref
+    | `AccessChain of id_ref * id_ref list
+    | `InBoundsAccessChain of id_ref * id_ref list
+    | `PtrAccessChain of id_ref * id_ref * id_ref list
+    | `InBoundsPtrAccessChain of id_ref * id_ref * id_ref list
   ];;
 let magic_number = 0x07230203l;;
 let version = (1, 1);;
@@ -913,7 +999,6 @@ let words_of_string (str : string) =
          add_char_to_word (String.get str i) (i mod 4) buffer.(i / 4);
        add_char_to_buffer (i + 1))
   in (add_char_to_buffer 0; Array.to_list buffer);;
-let todo _ = failwith "TODO";;
 let list_of_option (opt : 'a option) =
   match opt with | Some v -> [ v ] | None -> [];;
 let list_of_list_option (opt : ('a list) option) =
@@ -1371,7 +1456,79 @@ let words_of_decoration (v : decoration) =
   | DecorationInputAttachmentIndex a -> [ 43l; word_of_int a ]
   | DecorationAlignment a -> [ 44l; word_of_int a ]
   | DecorationMaxByteOffset a -> [ 45l; word_of_int a ];;
-let words_and_id_of_op :
+let rec words_of_spec_op : spec_op -> word list =
+  fun spec_op ->
+    match spec_op with
+    | `SConvert a -> [ 0x0072l; word_of_id a ]
+    | `FConvert a -> [ 0x0073l; word_of_id a ]
+    | `SNegate a -> [ 0x007el; word_of_id a ]
+    | `Not a -> [ 0x00c8l; word_of_id a ]
+    | `IAdd (a, b) -> [ 0x0080l; word_of_id a; word_of_id b ]
+    | `ISub (a, b) -> [ 0x0082l; word_of_id a; word_of_id b ]
+    | `IMul (a, b) -> [ 0x0084l; word_of_id a; word_of_id b ]
+    | `UDiv (a, b) -> [ 0x0086l; word_of_id a; word_of_id b ]
+    | `SDiv (a, b) -> [ 0x0087l; word_of_id a; word_of_id b ]
+    | `UMod (a, b) -> [ 0x0089l; word_of_id a; word_of_id b ]
+    | `SRem (a, b) -> [ 0x008al; word_of_id a; word_of_id b ]
+    | `SMod (a, b) -> [ 0x008bl; word_of_id a; word_of_id b ]
+    | `ShiftRightLogical (a, b) -> [ 0x00c2l; word_of_id a; word_of_id b ]
+    | `ShiftRightArithmetic (a, b) -> [ 0x00c3l; word_of_id a; word_of_id b ]
+    | `ShiftLeftLogical (a, b) -> [ 0x00c4l; word_of_id a; word_of_id b ]
+    | `BitwiseOr (a, b) -> [ 0x00c5l; word_of_id a; word_of_id b ]
+    | `BitwiseXor (a, b) -> [ 0x00c6l; word_of_id a; word_of_id b ]
+    | `BitwiseAnd (a, b) -> [ 0x00c7l; word_of_id a; word_of_id b ]
+    | `VectorShuffle (a, b, c) ->
+        0x004fl ::
+          ([ word_of_id a; word_of_id b ] @ (List.map word_of_int c))
+    | `CompositeExtract (a, b) ->
+        0x0051l :: ([ word_of_id a ] @ (List.map word_of_int b))
+    | `CompositeInsert (a, b, c) ->
+        0x0052l ::
+          ([ word_of_id a; word_of_id b ] @ (List.map word_of_int c))
+    | `LogicalOr (a, b) -> [ 0x00a6l; word_of_id a; word_of_id b ]
+    | `LogicalAnd (a, b) -> [ 0x00a7l; word_of_id a; word_of_id b ]
+    | `LogicalNot a -> [ 0x00a8l; word_of_id a ]
+    | `LogicalEqual (a, b) -> [ 0x00a4l; word_of_id a; word_of_id b ]
+    | `LogicalNotEqual (a, b) -> [ 0x00a5l; word_of_id a; word_of_id b ]
+    | `Select (a, b, c) ->
+        [ 0x00a9l; word_of_id a; word_of_id b; word_of_id c ]
+    | `IEqual (a, b) -> [ 0x00aal; word_of_id a; word_of_id b ]
+    | `INotEqual (a, b) -> [ 0x00abl; word_of_id a; word_of_id b ]
+    | `ULessThan (a, b) -> [ 0x00b0l; word_of_id a; word_of_id b ]
+    | `SLessThan (a, b) -> [ 0x00b1l; word_of_id a; word_of_id b ]
+    | `UGreaterThan (a, b) -> [ 0x00acl; word_of_id a; word_of_id b ]
+    | `SGreaterThan (a, b) -> [ 0x00adl; word_of_id a; word_of_id b ]
+    | `ULessThanEqual (a, b) -> [ 0x00b2l; word_of_id a; word_of_id b ]
+    | `SLessThanEqual (a, b) -> [ 0x00b3l; word_of_id a; word_of_id b ]
+    | `UGreaterThanEqual (a, b) -> [ 0x00ael; word_of_id a; word_of_id b ]
+    | `SGreaterThanEqual (a, b) -> [ 0x00afl; word_of_id a; word_of_id b ]
+    | `QuantizeToF16 a -> [ 0x0074l; word_of_id a ]
+    | `ConvertFToS a -> [ 0x006el; word_of_id a ]
+    | `ConvertSToF a -> [ 0x006fl; word_of_id a ]
+    | `ConvertFToU a -> [ 0x006dl; word_of_id a ]
+    | `ConvertUToF a -> [ 0x0070l; word_of_id a ]
+    | `UConvert a -> [ 0x0071l; word_of_id a ]
+    | `ConvertPtrToU a -> [ 0x0075l; word_of_id a ]
+    | `ConvertUToPtr a -> [ 0x0078l; word_of_id a ]
+    | `GenericCastToPtr a -> [ 0x007al; word_of_id a ]
+    | `PtrCastToGeneric a -> [ 0x0079l; word_of_id a ]
+    | `Bitcast a -> [ 0x007cl; word_of_id a ]
+    | `FNegate a -> [ 0x007fl; word_of_id a ]
+    | `FAdd (a, b) -> [ 0x0081l; word_of_id a; word_of_id b ]
+    | `FSub (a, b) -> [ 0x0083l; word_of_id a; word_of_id b ]
+    | `FMul (a, b) -> [ 0x0085l; word_of_id a; word_of_id b ]
+    | `FDiv (a, b) -> [ 0x0088l; word_of_id a; word_of_id b ]
+    | `FRem (a, b) -> [ 0x008cl; word_of_id a; word_of_id b ]
+    | `FMod (a, b) -> [ 0x008dl; word_of_id a; word_of_id b ]
+    | `AccessChain (a, b) ->
+        0x0041l :: ([ word_of_id a ] @ (List.map word_of_id b))
+    | `InBoundsAccessChain (a, b) ->
+        0x0042l :: ([ word_of_id a ] @ (List.map word_of_id b))
+    | `PtrAccessChain (a, b, c) ->
+        0x0043l :: ([ word_of_id a; word_of_id b ] @ (List.map word_of_id c))
+    | `InBoundsPtrAccessChain (a, b, c) ->
+        0x0046l :: ([ word_of_id a; word_of_id b ] @ (List.map word_of_id c));;
+let rec words_and_id_of_op :
   int IdMap.t -> op -> ((int IdMap.t) * (id option) * (word list)) =
   fun size_map op ->
     let lookup_size (id : id) =
@@ -1419,11 +1576,11 @@ let words_and_id_of_op :
       | `OpExtInstImport (a, b) ->
           (size_map, None,
            (build_op_words 0x000bl ([ word_of_id a ] @ (words_of_string b))))
-      | `OpExtInst (a, b, c, d, e) ->
+      | `OpExtInst (a, b, c, d) ->
           (size_map, (Some b),
            (build_op_words 0x000cl
-              (([ word_of_id a; word_of_id b; word_of_id c ] @ (todo d)) @
-                 (List.map word_of_id e))))
+              ([ word_of_id a; word_of_id b; word_of_id c ] @
+                 ((fun f -> f ()) d))))
       | `OpMemoryModel (a, b) ->
           (size_map, None,
            (build_op_words 0x000el
@@ -1550,7 +1707,7 @@ let words_and_id_of_op :
       | `OpSpecConstantOp (a, b, c) ->
           (size_map, (Some b),
            (build_op_words 0x0034l
-              ([ word_of_id a; word_of_id b ] @ (todo c))))
+              ([ word_of_id a; word_of_id b ] @ (words_of_spec_op c))))
       | `OpFunction (a, b, c, d) ->
           (size_map, (Some b),
            (build_op_words 0x0036l
