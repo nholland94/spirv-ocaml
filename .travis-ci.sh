@@ -1,4 +1,4 @@
-OPAM_DEPENDENCIES="ocamlfind ounit batteries yojson"
+OPAM_DEPENDENCIES="ocamlfind ounit batteries yojson>=1.3.2"
 
 case "$OCAML_VERSION,$OPAM_VERSION" in
   3.12.1,1.0.0) ppa=avsm/ocaml312+opam10 ;;
