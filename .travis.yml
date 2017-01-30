@@ -13,7 +13,8 @@ env:
 
 addons:
   apt:
-    - ninja-build
+    packages:
+      - ninja-build
 
 before-script:
   - git clone https://github.com/KhronosGroup/SPIRV-Tools.git ~/spirv-tools
