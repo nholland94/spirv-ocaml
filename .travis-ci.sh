@@ -28,8 +28,8 @@ eval `opam config env`
 # Build spirv-tools and inject path
 mkdir ~/spirv-tools/build
 cd ~/spirv-tools/build
-cmake -GNinja -DCMAKE_BUILD_TYPE=Release ..
-ninja
+cmake -GMake -DCMAKE_BUILD_TYPE=Release ..
+make
 cd -
 export PATH="$PATH:$HOME/spirv-tools/build/toos"
 
