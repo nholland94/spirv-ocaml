@@ -16,7 +16,7 @@ addons:
     packages:
       - ninja-build
 
-before-script:
+before_script:
   - git clone https://github.com/KhronosGroup/SPIRV-Tools.git ~/spirv-tools
   - git clone https://github.com/KhronosGroup/SPIRV-Headers.git ~/spirv-tools/external/spirv-headers
 
