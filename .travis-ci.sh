@@ -13,6 +13,7 @@ case "$OCAML_VERSION,$OPAM_VERSION" in
              *) echo Unknown $OCAML_VERSION,$OPAM_VERSION; exit 1 ;;
 esac
 
+# Setup project dependencies
 echo "yes" | sudo add-apt-repository ppa:$ppa
 sudo apt-get update -qq
 sudo apt-get install -qq ocaml ocaml-native-compilers camlp4-extra opam
@@ -23,5 +24,14 @@ opam init
 opam update
 opam install ${OPAM_DEPENDENCIES}
 eval `opam config env`
+
+# Build spirv-tools and inject path
+mkdir ~/spirv-tools/build
+cd ~/spirv-tools/build
+cmake -GNinja -DCMAKE_BUILD_TYPE=Release ..
+ninja
+cd -
+export PATH="$PATH:$HOME/spirv-tools/build/toos"
+
 make
 make test
