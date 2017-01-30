@@ -17,7 +17,7 @@ addons:
       - ninja-build
 
 before_script:
-  - git clone https://github.com/KhronosGroup/SPIRV-Tools.git ~/spirv-tools
+  - git clone --branch spirv-1.1-rev1 https://github.com/KhronosGroup/SPIRV-Tools.git ~/spirv-tools
   - git clone https://github.com/KhronosGroup/SPIRV-Headers.git ~/spirv-tools/external/spirv-headers
 
 script: bash -ex .travis-ci.sh
