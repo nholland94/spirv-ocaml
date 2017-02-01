@@ -64,10 +64,10 @@ let binary_comparison_set_creators : (string * (unit -> op list * string)) list 
 
       `OpConstant (t_uint_32, c_uint_32_1, BigInt (Big_int.big_int_of_int 200));
       `OpConstant (t_uint_32, c_uint_32_2, BigInt (Big_int.big_int_of_int 1234567));
-      `OpConstant (t_uint_32, c_uint_64_1, BigInt (cons_big_int [0x0000000f; 0xffff00ff]));
-      `OpConstant (t_uint_32, c_uint_64_2, BigInt (cons_big_int [0x00ff0fff; 0xffff007f]));
+      `OpConstant (t_uint_64, c_uint_64_1, BigInt (cons_big_int [0x0000000f; 0xffff00ff]));
+      `OpConstant (t_uint_64, c_uint_64_2, BigInt (cons_big_int [0x00ff0fff; 0xffff007f]));
     ], "
-"^id t_uint_32^"     = OpTypeInt 32 9
+"^id t_uint_32^"     = OpTypeInt 32 0
 "^id t_uint_64^"     = OpTypeInt 64 0
 
 "^id c_uint_32_1^"   = OpConstant "^id t_uint_32^" 200
@@ -100,6 +100,7 @@ let binary_comparison_set_creators : (string * (unit -> op list * string)) list 
 "^id c_float_32_2^" = OpConstant "^id t_float_32^" -700.568
 "^id c_float_64_1^" = OpConstant "^id t_float_64^" 77777777777.7777777777777
 "^id c_float_64_2^" = OpConstant "^id t_float_64^" -100.406
+
     "
   );
   ("string values", fun () ->
