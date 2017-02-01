@@ -9,9 +9,7 @@ A code-generated spirv compiler for ocaml.
 Still under development, but close to ready for the first opam publish.
 
 Things to do:
-  - fix binary encoding of literal values
-  - flag folding
-  - write more tests
+  - fix binary encoding of float values
   - add validations
 
 ## Warnings
