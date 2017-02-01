@@ -37,7 +37,7 @@ cmake --help
 cmake -G"Unix Makefiles" -DCMAKE_BUILD_TYPE=Release ..
 make
 cd -
-export PATH="$PATH:$HOME/spirv-tools/build/toos"
+export PATH="$PATH:$HOME/spirv-tools/build/tools"
 
 # -- Build and test project
 
