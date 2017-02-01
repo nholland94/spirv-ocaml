@@ -33,7 +33,6 @@ eval `opam config env`
 
 mkdir ~/spirv-tools/build
 cd ~/spirv-tools/build
-cmake --help
 cmake -G"Unix Makefiles" -DCMAKE_BUILD_TYPE=Release ..
 make
 cd -
