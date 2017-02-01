@@ -4,3 +4,4 @@
 *.out
 oUnit-*
 test_results
+spirv.*
