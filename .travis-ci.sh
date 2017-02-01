@@ -18,14 +18,13 @@ esac
 echo "yes" | sudo add-apt-repository ppa:$ppa
 echo "yes" | sudo add-apt-repository ppa:george-edison55/cmake-3.x
 sudo apt-get update -qq
-sudo apt search cmake
 sudo apt-get install --only-upgrade cmake
 sudo apt-get install -qq ocaml ocaml-native-compilers camlp4-extra opam
 
 export OPAMYES=1
 opam --version
 opam init 
-. /home/travis/.opam/opam-init/init.sh > /dev/null 2> /dev/null || true
+. ~/.opam/opam-init/init.sh > /dev/null 2> /dev/null || true
 opam update
 opam install ${OPAM_DEPENDENCIES}
 eval `opam config env`
