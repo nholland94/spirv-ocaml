@@ -665,11 +665,10 @@ let words_exp_of_enumerant_parameter (param, binding) =
         (exp_type_of_kind kind, <:expr< $conversion_fn$ $binding$ >>)
 
 let build_words_exp_of_parameterized_enumerant enumerant parameter_names =
-  let value_exp = Templates.ex_int (enumerant.enumerant_value ^ "l") in
   let parameter_bindings = List.map Templates.ex_id_lid parameter_names in
   let parameter_words_exps = List.map words_exp_of_enumerant_parameter @@ List.combine enumerant.enumerant_parameters parameter_bindings in
-  let words_exps = (Scalar, value_exp) :: parameter_words_exps in
-  concat_words_exps words_exps
+  let words_exps = parameter_words_exps in
+  concat_words_exps parameter_words_exps
 
 (* TODO: refactor *)
 let build_enum_value_fn (name, (ty, parameterization), enumerants) =
@@ -687,7 +686,7 @@ let build_enum_value_fn (name, (ty, parameterization), enumerants) =
       | (Parameterized, params) ->
           let param_names = Util.generate_names (List.length params) in
           let word_exps = build_words_exp_of_parameterized_enumerant enum param_names in
-          ((name, param_names), word_exps)
+          ((name, param_names), <:expr< $value_exp$ :: $word_exps$ >>)
       | _                       -> failwith "impossible case"
   in
 
@@ -809,18 +808,11 @@ let build_enum_value_fn (name, (ty, parameterization), enumerants) =
       let words_of_context_dependent_number = fun (size : int) (value : big_int_or_float) ->
         let word_size = 32 in
         let words_of_sized_big_int n =
-          let round_up_divisible = fun divisor n ->
+          let round_up_divisible divisor n =
             (n / divisor) + (if n mod divisor > 0 then 1 else 0)
           in
           let word_count = round_up_divisible word_size size in
-          let mask = Big_int.big_int_of_int 0xffffffff in
-          let extract_word i =
-            let shift_amount = word_size * i in
-            let shifted_mask = Big_int.shift_left_big_int mask shift_amount in
-            let masked_n = Big_int.and_big_int n shifted_mask in
-            let adjusted_n = Big_int.shift_right_big_int masked_n shift_amount in
-            Big_int.int32_of_big_int adjusted_n
-          in
+          let extract_word i = Int32.of_int @@ Big_int.int_of_big_int @@ Big_int.extract_big_int n (32 * i) 32 in
           let rec extract_words i =
             if i < word_count then
               extract_word i :: extract_words (i + 1)

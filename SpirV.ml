@@ -974,13 +974,9 @@ let words_of_context_dependent_number (size : int) (value : big_int_or_float)
     let round_up_divisible divisor n =
       (n / divisor) + (if (n mod divisor) > 0 then 1 else 0) in
     let word_count = round_up_divisible word_size size in
-    let mask = Big_int.big_int_of_int 0xffffffff in
     let extract_word i =
-      let shift_amount = word_size * i in
-      let shifted_mask = Big_int.shift_left_big_int mask shift_amount in
-      let masked_n = Big_int.and_big_int n shifted_mask in
-      let adjusted_n = Big_int.shift_right_big_int masked_n shift_amount
-      in Big_int.int32_of_big_int adjusted_n in
+      Int32.of_int @@
+        (Big_int.int_of_big_int @@ (Big_int.extract_big_int n (32 * i) 32)) in
     let rec extract_words i =
       if i < word_count
       then (extract_word i) :: (extract_words (i + 1))
@@ -1024,15 +1020,14 @@ let words_of_image_operands (flags : image_operands list) =
   let split flag =
     match flag with
     | ImageOperandsNone -> (0x0000l, [])
-    | ImageOperandsBias a -> (0x0001l, [ 0x0001l; word_of_id a ])
-    | ImageOperandsLod a -> (0x0002l, [ 0x0002l; word_of_id a ])
-    | ImageOperandsGrad (a, b) ->
-        (0x0004l, [ 0x0004l; word_of_id a; word_of_id b ])
-    | ImageOperandsConstOffset a -> (0x0008l, [ 0x0008l; word_of_id a ])
-    | ImageOperandsOffset a -> (0x0010l, [ 0x0010l; word_of_id a ])
-    | ImageOperandsConstOffsets a -> (0x0020l, [ 0x0020l; word_of_id a ])
-    | ImageOperandsSample a -> (0x0040l, [ 0x0040l; word_of_id a ])
-    | ImageOperandsMinLod a -> (0x0080l, [ 0x0080l; word_of_id a ]) in
+    | ImageOperandsBias a -> (0x0001l, [ word_of_id a ])
+    | ImageOperandsLod a -> (0x0002l, [ word_of_id a ])
+    | ImageOperandsGrad (a, b) -> (0x0004l, [ word_of_id a; word_of_id b ])
+    | ImageOperandsConstOffset a -> (0x0008l, [ word_of_id a ])
+    | ImageOperandsOffset a -> (0x0010l, [ word_of_id a ])
+    | ImageOperandsConstOffsets a -> (0x0020l, [ word_of_id a ])
+    | ImageOperandsSample a -> (0x0040l, [ word_of_id a ])
+    | ImageOperandsMinLod a -> (0x0080l, [ word_of_id a ]) in
   let combine_split_flags (a_flag, a_ops) (b_flag, b_ops) =
     ((Int32.logor a_flag b_flag), (a_ops @ b_ops)) in
   let (flag, ops) =
@@ -1064,7 +1059,7 @@ let words_of_loop_control (flags : loop_control list) =
     | LoopControlUnroll -> (0x0001l, [])
     | LoopControlDontUnroll -> (0x0002l, [])
     | LoopControlDependencyInfinite -> (0x0004l, [])
-    | LoopControlDependencyLength a -> (0x0008l, [ 0x0008l; word_of_int a ]) in
+    | LoopControlDependencyLength a -> (0x0008l, [ word_of_int a ]) in
   let combine_split_flags (a_flag, a_ops) (b_flag, b_ops) =
     ((Int32.logor a_flag b_flag), (a_ops @ b_ops)) in
   let (flag, ops) =
@@ -1102,7 +1097,7 @@ let words_of_memory_access (flags : memory_access list) =
     match flag with
     | MemoryAccessNone -> (0x0000l, [])
     | MemoryAccessVolatile -> (0x0001l, [])
-    | MemoryAccessAligned a -> (0x0002l, [ 0x0002l; word_of_int a ])
+    | MemoryAccessAligned a -> (0x0002l, [ word_of_int a ])
     | MemoryAccessNontemporal -> (0x0004l, []) in
   let combine_split_flags (a_flag, a_ops) (b_flag, b_ops) =
     ((Int32.logor a_flag b_flag), (a_ops @ b_ops)) in
@@ -1497,7 +1492,7 @@ let words_of_decoration (enum : decoration) =
   | DecorationFPRoundingMode a -> [ 39l; word_of_f_p_rounding_mode a ]
   | DecorationFPFastMathMode a -> [ 40l; word_of_f_p_fast_math_mode a ]
   | DecorationLinkageAttributes (a, b) ->
-      ([ 41l ] @ (words_of_string a)) @ [ word_of_linkage_type b ]
+      41l :: ((words_of_string a) @ [ word_of_linkage_type b ])
   | DecorationNoContraction -> [ 42l ]
   | DecorationInputAttachmentIndex a -> [ 43l; word_of_int a ]
   | DecorationAlignment a -> [ 44l; word_of_int a ]

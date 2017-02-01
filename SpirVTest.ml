@@ -8,7 +8,7 @@ let cons_big_int ls =
   let rec loop i = function
     | h :: t ->
         let shifted_value = Big_int.shift_left_big_int (Big_int.of_int h) (i * 32) in
-        Big_int.and_big_int shifted_value (loop (i - 1) t)
+        Big_int.or_big_int shifted_value (loop (i - 1) t)
     | []     -> Big_int.of_int 0
   in
   loop (List.length ls - 1) ls
@@ -20,9 +20,11 @@ let binary_comparison_set_creators : (string * (unit -> op list * string)) list 
     let t_int_40 = 2l in
     let t_int_64 = 3l in
     let c_int_32_1 = 4l in
-    let c_int_40_1 = 5l in
-    let c_int_40_2 = 6l in
-    let c_int_64_1 = 7l in
+    let c_int_32_2 = 5l in
+    let c_int_40_1 = 6l in
+    let c_int_40_2 = 7l in
+    let c_int_40_3 = 8l in
+    let c_int_64_1 = 9l in
 
     [
       `OpTypeInt (t_int_32, 32l, 1l);
@@ -30,26 +32,76 @@ let binary_comparison_set_creators : (string * (unit -> op list * string)) list 
       `OpTypeInt (t_int_64, 64l, 1l);
 
       `OpConstant (t_int_32, c_int_32_1, BigInt (Big_int.big_int_of_int 200));
+      `OpConstant (t_int_32, c_int_32_2, BigInt (Big_int.big_int_of_int (-50)));
       `OpConstant (t_int_40, c_int_40_1, BigInt (Big_int.big_int_of_int 400));
-      `OpConstant (t_int_40, c_int_40_2, BigInt (cons_big_int [0x0000000f; 0xffff00ff]));
-      `OpConstant (t_int_64, c_int_64_1, BigInt (cons_big_int [0x00ff00ff; 0xffff007f]))
+      `OpConstant (t_int_40, c_int_40_2, BigInt (Big_int.big_int_of_int (-120)));
+      `OpConstant (t_int_40, c_int_40_3, BigInt (cons_big_int [0x0000000f; 0xffff00ff]));
+      `OpConstant (t_int_64, c_int_64_1, BigInt (cons_big_int [0x00ff0fff; 0xffff007f]))
     ], "
 "^id t_int_32^"     = OpTypeInt 32 1
 "^id t_int_40^"     = OpTypeInt 40 1
 "^id t_int_64^"     = OpTypeInt 64 1
 
 "^id c_int_32_1^"   = OpConstant "^id t_int_32^" 200
+"^id c_int_32_2^"   = OpConstant "^id t_int_32^" -50
 "^id c_int_40_1^"   = OpConstant "^id t_int_40^" 400
-"^id c_int_40_2^"   = OpConstant "^id t_int_40^" 68719411455
+"^id c_int_40_2^"   = OpConstant "^id t_int_40^" -120
+"^id c_int_40_3^"   = OpConstant "^id t_int_40^" 68719411455
 "^id c_int_64_1^"   = OpConstant "^id t_int_64^" 71793711247196287
     "
   );
-  (*
-  ("signed integer values", fun () ->
+  ("unsigned integer values", fun () ->
+    let t_uint_32 = 1l in
+    let t_uint_64 = 2l in
+    let c_uint_32_1 = 3l in
+    let c_uint_32_2 = 4l in
+    let c_uint_64_1 = 5l in
+    let c_uint_64_2 = 6l in
+
+    [
+      `OpTypeInt (t_uint_32, 32l, 0l);
+      `OpTypeInt (t_uint_64, 64l, 0l);
+
+      `OpConstant (t_uint_32, c_uint_32_1, BigInt (Big_int.big_int_of_int 200));
+      `OpConstant (t_uint_32, c_uint_32_2, BigInt (Big_int.big_int_of_int 1234567));
+      `OpConstant (t_uint_32, c_uint_64_1, BigInt (cons_big_int [0x0000000f; 0xffff00ff]));
+      `OpConstant (t_uint_32, c_uint_64_2, BigInt (cons_big_int [0x00ff0fff; 0xffff007f]));
+    ], "
+"^id t_uint_32^"     = OpTypeInt 32 9
+"^id t_uint_64^"     = OpTypeInt 64 0
+
+"^id c_uint_32_1^"   = OpConstant "^id t_uint_32^" 200
+"^id c_uint_32_2^"   = OpConstant "^id t_uint_32^" 1234567
+"^id c_uint_64_1^"   = OpConstant "^id t_uint_64^" 68719411455
+"^id c_uint_64_2^"   = OpConstant "^id t_uint_64^" 71793711247196287
+    "
   );
   ("floating point values", fun () ->
+    let t_float_32 = 1l in
+    let t_float_64 = 2l in
+    let c_float_32_1 = 3l in
+    let c_float_32_2 = 4l in
+    let c_float_64_1 = 5l in
+    let c_float_64_2 = 6l in
+
+    [
+      `OpTypeFloat (t_float_32, 32l);
+      `OpTypeFloat (t_float_64, 64l);
+
+      `OpConstant (t_float_32, c_float_32_1, Float 1234.5678);
+      `OpConstant (t_float_32, c_float_32_2, Float (-700.568));
+      `OpConstant (t_float_64, c_float_64_1, Float 77777777777.7777777777777);
+      `OpConstant (t_float_64, c_float_64_2, Float (-100.406));
+    ], "
+"^id t_float_32^"   = OpTypeFloat 32
+"^id t_float_64^"   = OpTypeFloat 64
+
+"^id c_float_32_1^" = OpConstant "^id t_float_32^" 1234.5678
+"^id c_float_32_2^" = OpConstant "^id t_float_32^" -700.568
+"^id c_float_64_1^" = OpConstant "^id t_float_64^" 77777777777.7777777777777
+"^id c_float_64_2^" = OpConstant "^id t_float_64^" -100.406
+    "
   );
-  *)
   ("string values", fun () ->
     let s_1 = 1l in
     let s_2 = 2l in
@@ -87,14 +139,14 @@ let binary_comparison_set_creators : (string * (unit -> op list * string)) list 
     let block = 1l in
     let t_img = 2l in
     let img_1 = 3l in
-    let img_2 = 4l in
-    let img_3 = 5l in
-    let simg = 6l in
-    let coord = 7l in
-    let bias = 8l in
-    let c_offset = 9l in
-    let grad_a = 10l in
-    let grad_b = 11l in
+    let simg = 4l in
+    let coord = 5l in
+    let bias = 6l in
+    let img_2 = 7l in
+    let c_offset = 8l in
+    let grad_a = 9l in
+    let grad_b = 10l in
+    let img_3 = 11l in
     let sample = 12l in
     let lod = 13l in
 
