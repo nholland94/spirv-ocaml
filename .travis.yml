@@ -15,6 +15,7 @@ addons:
   apt:
     packages:
       - ninja-build
+      - software-properties-common
 
 before_script:
   - git clone --branch spirv-1.1-rev1 https://github.com/KhronosGroup/SPIRV-Tools.git ~/spirv-tools
