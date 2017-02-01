@@ -19,5 +19,5 @@ remove: [
 ]
 depends: [
   "ocamlfind" {build}
-  "batteries" {>= 2.5.0}
+  "batteries" {>= "2.5.0"}
 ]
