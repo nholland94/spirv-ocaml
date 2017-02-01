@@ -963,9 +963,9 @@ let word_of_float (f : float) = let open IO
          | h :: t ->
              let value = Int32.of_int @@ (Char.code h) in
              let acc = Int32.logor acc (Int32.shift_left value (8 * n))
-             in write_to_int32 (n - 1) acc t
+             in write_to_int32 (n + 1) acc t
          | [] -> acc
-       in write_to_int32 3 0l (String.to_list str));;
+       in write_to_int32 0 0l (String.to_list str));;
 
 let words_of_context_dependent_number (size : int) (value : big_int_or_float)
                                       =
@@ -982,14 +982,17 @@ let words_of_context_dependent_number (size : int) (value : big_int_or_float)
       then (extract_word i) :: (extract_words (i + 1))
       else []
     in extract_words 0 in
-  let rec make_ls n el = if n = 0 then [] else el :: (make_ls (n - 1) el) in
-  let words_of_sized_float f =
-    (word_of_float f) ::
-      (make_ls ((min (size - word_size) 0) / word_size) 0l)
+  let rec make_ls n el = if n = 0 then [] else el :: (make_ls (n - 1) el)
   in
     match value with
     | BigInt n -> words_of_sized_big_int n
-    | Float f -> words_of_sized_float f;;
+    | Float f ->
+        if size = 32
+        then [ word_of_float f ]
+        else
+          raise
+            (Invalid_argument
+               "cannot write float literals of sizes other than 32 bits");;
 let words_of_string (str : string) =
   let len = String.length str in
   let word_count = (len / 4) + (if (len mod 4) >= 0 then 1 else 0) in

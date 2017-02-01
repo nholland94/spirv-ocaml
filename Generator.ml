@@ -797,10 +797,10 @@ let build_enum_value_fn (name, (ty, parameterization), enumerants) =
             | h :: t ->
                 let value = Int32.of_int @@ Char.code h in
                 let acc = Int32.logor acc (Int32.shift_left value (8 * n)) in
-                write_to_int32 (n - 1) acc t
+                write_to_int32 (n + 1) acc t
             | []     -> acc
         in
-        write_to_int32 3 0l (String.to_list str) 
+        write_to_int32 0 0l (String.to_list str) 
     >>;
     <:str_item<
     >>;
@@ -824,12 +824,9 @@ let build_enum_value_fn (name, (ty, parameterization), enumerants) =
         let rec make_ls = fun n el ->
           if n = 0 then [] else el :: make_ls (n - 1) el
         in
-        let words_of_sized_float = fun f ->
-          word_of_float f :: make_ls (min (size - word_size) 0 / word_size) 0l
-        in
         match value with
           | BigInt n -> words_of_sized_big_int n
-          | Float f  -> words_of_sized_float f
+          | Float f  -> if size = 32 then [word_of_float f] else raise (Invalid_argument "cannot write float literals of sizes other than 32 bits")
     >>;
     <:str_item<
       let words_of_string = fun (str : string) ->

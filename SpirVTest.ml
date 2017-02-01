@@ -78,29 +78,19 @@ let binary_comparison_set_creators : (string * (unit -> op list * string)) list 
   );
   ("floating point values", fun () ->
     let t_float_32 = 1l in
-    let t_float_64 = 2l in
-    let c_float_32_1 = 3l in
-    let c_float_32_2 = 4l in
-    let c_float_64_1 = 5l in
-    let c_float_64_2 = 6l in
+    let c_float_32_1 = 2l in
+    let c_float_32_2 = 3l in
 
     [
       `OpTypeFloat (t_float_32, 32l);
-      `OpTypeFloat (t_float_64, 64l);
 
       `OpConstant (t_float_32, c_float_32_1, Float 1234.5678);
       `OpConstant (t_float_32, c_float_32_2, Float (-700.568));
-      `OpConstant (t_float_64, c_float_64_1, Float 77777777777.7777777777777);
-      `OpConstant (t_float_64, c_float_64_2, Float (-100.406));
     ], "
 "^id t_float_32^"   = OpTypeFloat 32
-"^id t_float_64^"   = OpTypeFloat 64
 
 "^id c_float_32_1^" = OpConstant "^id t_float_32^" 1234.5678
 "^id c_float_32_2^" = OpConstant "^id t_float_32^" -700.568
-"^id c_float_64_1^" = OpConstant "^id t_float_64^" 77777777777.7777777777777
-"^id c_float_64_2^" = OpConstant "^id t_float_64^" -100.406
-
     "
   );
   ("string values", fun () ->
