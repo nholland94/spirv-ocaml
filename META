@@ -1,0 +1,7 @@
+name = "spirv"
+version = "1.1.1"
+description = "SPIR-V compiler library for OCaml"
+requires = "batteries"
+archive(byte) = "SpirV.cmo"
+archive(native) = "SpirV.cmx"
+archive(native,plugin) = "SpirV.cmxs"
