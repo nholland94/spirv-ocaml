@@ -966,12 +966,13 @@ let word_of_float (f : float) = let open IO
              in write_to_int32 (n - 1) acc t
          | [] -> acc
        in write_to_int32 3 0l (String.to_list str));;
-let round_up_divisible divisor n =
-  (n / divisor) + (if (n mod divisor) > 0 then 1 else 0);;
+
 let words_of_context_dependent_number (size : int) (value : big_int_or_float)
                                       =
   let word_size = 32 in
   let words_of_sized_big_int n =
+    let round_up_divisible divisor n =
+      (n / divisor) + (if (n mod divisor) > 0 then 1 else 0) in
     let word_count = round_up_divisible word_size size in
     let mask = Big_int.big_int_of_int 0xffffffff in
     let extract_word i =
@@ -995,11 +996,11 @@ let words_of_context_dependent_number (size : int) (value : big_int_or_float)
     | Float f -> words_of_sized_float f;;
 let words_of_string (str : string) =
   let len = String.length str in
-  let word_count = round_up_divisible 4 len in
+  let word_count = (len / 4) + (if (len mod 4) >= 0 then 1 else 0) in
   let buffer = Array.make word_count 0l in
   let add_char_to_word ch offset word =
     Int32.logor word
-      (Int32.shift_left (Int32.of_int @@ (Char.code ch)) (offset * 4)) in
+      (Int32.shift_left (Int32.of_int @@ (Char.code ch)) (offset * 8)) in
   let rec add_char_to_buffer i =
     if i = len
     then ()

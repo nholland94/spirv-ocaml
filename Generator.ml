@@ -804,13 +804,14 @@ let build_enum_value_fn (name, (ty, parameterization), enumerants) =
         write_to_int32 3 0l (String.to_list str) 
     >>;
     <:str_item<
-      let round_up_divisible = fun divisor n ->
-        (n / divisor) + (if n mod divisor > 0 then 1 else 0)
     >>;
     <:str_item<
       let words_of_context_dependent_number = fun (size : int) (value : big_int_or_float) ->
         let word_size = 32 in
         let words_of_sized_big_int n =
+          let round_up_divisible = fun divisor n ->
+            (n / divisor) + (if n mod divisor > 0 then 1 else 0)
+          in
           let word_count = round_up_divisible word_size size in
           let mask = Big_int.big_int_of_int 0xffffffff in
           let extract_word i =
@@ -841,10 +842,10 @@ let build_enum_value_fn (name, (ty, parameterization), enumerants) =
     <:str_item<
       let words_of_string = fun (str : string) ->
         let len = String.length str in
-        let word_count = round_up_divisible 4 len in
+        let word_count = (len / 4) + (if len mod 4 >= 0 then 1 else 0) in
         let buffer = Array.make word_count 0l in
         let add_char_to_word ch offset word =
-          Int32.logor word (Int32.shift_left (Int32.of_int @@ Char.code ch) (offset * 4))
+          Int32.logor word (Int32.shift_left (Int32.of_int @@ Char.code ch) (offset * 8))
         in
         let rec add_char_to_buffer i =
           if i = len then

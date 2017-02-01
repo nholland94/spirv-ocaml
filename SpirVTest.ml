@@ -16,26 +16,15 @@ let cons_big_int ls =
 let binary_comparison_set_creators : (string * (unit -> op list * string)) list = [
   (* TODO test unsigned constants *)
   ("signed integer values", fun () ->
-    let func = 1l in
-    let t_void = 2l in
-    let t_func = 3l in
-    let t_int_32 = 4l in
-    let t_int_40 = 5l in
-    let t_int_64 = 6l in
-    let c_int_32_1 = 9l in
-    let c_int_40_1 = 10l in
-    let c_int_40_2 = 11l in
-    let c_int_64_1 = 12l in
+    let t_int_32 = 1l in
+    let t_int_40 = 2l in
+    let t_int_64 = 3l in
+    let c_int_32_1 = 4l in
+    let c_int_40_1 = 5l in
+    let c_int_40_2 = 6l in
+    let c_int_64_1 = 7l in
 
     [
-      `OpCapability CapabilityShader;
-      `OpMemoryModel (AddressingModelLogical, MemoryModelSimple);
-      `OpEntryPoint (ExecutionModelGLCompute, func, "f", []);
-      `OpExecutionMode (func, ExecutionModeLocalSize (1l, 1l, 1l));
-
-      `OpTypeVoid t_void;
-      `OpTypeFunction (t_func, t_void, []);
-
       `OpTypeInt (t_int_32, 32l, 1l);
       `OpTypeInt (t_int_40, 40l, 1l);
       `OpTypeInt (t_int_64, 64l, 1l);
@@ -45,14 +34,6 @@ let binary_comparison_set_creators : (string * (unit -> op list * string)) list 
       `OpConstant (t_int_40, c_int_40_2, BigInt (cons_big_int [0x0000000f; 0xffff00ff]));
       `OpConstant (t_int_64, c_int_64_1, BigInt (cons_big_int [0x00ff00ff; 0xffff007f]))
     ], "
-                      OpCapability Shader
-                      OpMemoryModel Logical Simple
-                      OpEntryPoint GLCompute "^id func^" \"f\"
-                      OpExecutionMode "^id func^" LocalSize 1 1 1
-
-"^id t_void^"       = OpTypeVoid
-"^id t_func^"       = OpTypeFunction "^id t_void^"
-
 "^id t_int_32^"     = OpTypeInt 32 1
 "^id t_int_40^"     = OpTypeInt 40 1
 "^id t_int_64^"     = OpTypeInt 64 1
@@ -70,25 +51,17 @@ let binary_comparison_set_creators : (string * (unit -> op list * string)) list 
   );
   *)
   ("string values", fun () ->
-    let func = 1l in
-    let t_void = 2l in
-    let t_func = 3l in
-    let s_1 = 4l in
-    let s_2 = 5l in
-    let s_3 = 6l in
-    let s_4 = 7l in
-    let s_5 = 8l in
-    let s_6 = 9l in
-    let s_7 = 10l in
-    let s_8 = 11l in
-    let s_9 = 12l in
+    let s_1 = 1l in
+    let s_2 = 2l in
+    let s_3 = 3l in
+    let s_4 = 4l in
+    let s_5 = 5l in
+    let s_6 = 6l in
+    let s_7 = 7l in
+    let s_8 = 8l in
+    let s_9 = 9l in
 
     [
-      `OpCapability CapabilityShader;
-      `OpMemoryModel (AddressingModelLogical, MemoryModelSimple);
-      `OpEntryPoint (ExecutionModelGLCompute, func, "f", []);
-      `OpExecutionMode (func, ExecutionModeLocalSize (1l, 1l, 1l));
-
       `OpString (s_1, "a");
       `OpString (s_2, "ab");
       `OpString (s_3, "abc");
@@ -98,15 +71,7 @@ let binary_comparison_set_creators : (string * (unit -> op list * string)) list 
       `OpString (s_7, "abcdefg");
       `OpString (s_8, "abcdefgh");
       `OpString (s_9, "this is a really long string");
-
-      `OpTypeVoid t_void;
-      `OpTypeFunction (t_func, t_void, []);
     ], "
-                      OpCapability Shader
-                      OpMemoryModel Logical Simple
-                      OpEntryPoint GLCompute "^id func^" \"f\"
-                      OpExecutionMode "^id func^" LocalSize 1 1 1
-
 "^id s_1^"          = OpString \"a\"
 "^id s_2^"          = OpString \"ab\"
 "^id s_3^"          = OpString \"abc\"
@@ -116,9 +81,6 @@ let binary_comparison_set_creators : (string * (unit -> op list * string)) list 
 "^id s_7^"          = OpString \"abcdefg\"
 "^id s_8^"          = OpString \"abcdefgh\"
 "^id s_9^"          = OpString \"this is a really long string\"
-
-"^id t_void^"       = OpTypeVoid
-"^id t_func^"       = OpTypeFunction "^id t_void^"
     "
   );
   ("bit enums", fun () ->
@@ -183,87 +145,30 @@ let binary_comparison_set_creators : (string * (unit -> op list * string)) list 
   );
   ("extended instructions", fun () ->
     let glsl = 1l in
-    let func = 2l in
-    let t_void = 3l in
-    let t_func = 4l in
-    let t_int = 5l in
-    let c_9 = 6l in
-    let label = 7l in
-    let r = 8l in
+    let t_int = 2l in
+    let r = 3l in
+    let c_9 = 4l in
 
     [
-      `OpCapability CapabilityShader;
       `OpExtInstImport (glsl, "GLSL.std.450");
-      `OpMemoryModel (AddressingModelLogical, MemoryModelSimple);
-      `OpEntryPoint (ExecutionModelGLCompute, func, "f", []);
-      `OpExecutionMode (func, ExecutionModeLocalSize (1l, 1l, 1l));
-
-      `OpTypeVoid t_void;
-      `OpTypeFunction (t_func, t_void, []);
-
-      `OpTypeInt (t_int, 32l, 1l);
-
-      `OpConstant (t_int, c_9, BigInt (Big_int.of_int 9));
-
-      `OpFunction (t_void, func, [FunctionControlNone], t_func);
-      `OpLabel label;
-      `OpExtInst (t_int, r, glsl, fun () -> [0x0001l; c_9]);
+      `OpExtInst (t_int, r, glsl, fun () -> [0x001fl; c_9]);
     ], "
-                      OpCapability Shader
 "^id glsl^"         = OpExtInstImport \"GLSL.std.450\"
-                      OpMemoryModel Logical Simple
-                      OpEntryPoint GLCompute "^id func^" \"f\"
-                      OpExecutionMode "^id func^" LocalSize 1 1 1
-
-"^id t_void^"       = OpTypeVoid
-"^id t_func^"       = OpTypeFunction "^id t_void^"
-
-"^id t_int^"        = OpTypeInt 32 1
-
-"^id c_9^"          = OpConstant "^id t_int^" 9
-
-"^id func^"         = OpFunction "^id t_void^" None "^id t_func^"
-"^id label^"        = OpLabel
 "^id r^"            = OpExtInst "^id t_int^" "^id glsl^" Sqrt "^id c_9^"
     "
   );
   ("very large program", fun () ->
-    let func = 1l in
-    let t_void = 2l in
-    let t_func = 3l in
-    let t_int = 4l in
-
-    let statement_base_id = 5l in
+    let t_int = 1l in
 
     let statement_count = 5000l in
 
-    let base_ops = [
-      `OpCapability CapabilityShader;
-      `OpMemoryModel (AddressingModelLogical, MemoryModelSimple);
-      `OpEntryPoint (ExecutionModelGLCompute, func, "f", []);
-      `OpExecutionMode (func, ExecutionModeLocalSize (1l, 1l, 1l));
-
-      `OpTypeVoid t_void;
-      `OpTypeFunction (t_func, t_void, []);
-
-      `OpTypeInt (t_int, 32l, 1l)
-    ] in
+    let base_ops = [ `OpTypeInt (t_int, 32l, 1l) ] in
 
     let build_op_statement identifier =
       `OpConstant (t_int, identifier, BigInt (Big_int.big_int_of_int 256))
     in
 
-    let base_asm_source = "
-                      OpCapability Shader
-                      OpMemoryModel Logical Simple
-                      OpEntryPoint GLCompute "^id func^" \"f\"
-                      OpExecutionMode "^id func^" LocalSize 1 1 1
-
-"^id t_void^"       = OpTypeVoid
-"^id t_func^"       = OpTypeFunction "^id t_void^"
-
-"^id t_int^"        = OpTypeInt 32 1"
-    in
+    let base_asm_source = id t_int^" = OpTypeInt 32 1" in
 
     let build_asm_statement identifier =
       id identifier^" = OpConstant "^id t_int^" 256"
@@ -271,9 +176,9 @@ let binary_comparison_set_creators : (string * (unit -> op list * string)) list 
 
     let build_statements fn max =
       let rec loop i =
-        if i > max then [] else fn (Int32.add statement_base_id i) :: loop (Int32.add i 1l)
+        if i > max then [] else fn i :: loop (Int32.add i 1l)
       in
-      loop 0l
+      loop 2l
     in
 
     let ops = base_ops @ build_statements build_op_statement statement_count in
