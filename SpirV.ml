@@ -448,7 +448,7 @@ type id =
   | DecorationXfbStride of literal_integer
   | DecorationFuncParamAttr of function_parameter_attribute
   | DecorationFPRoundingMode of f_p_rounding_mode
-  | DecorationFPFastMathMode of f_p_fast_math_mode
+  | DecorationFPFastMathMode of f_p_fast_math_mode list
   | DecorationLinkageAttributes of literal_string * linkage_type
   | DecorationNoContraction
   | DecorationInputAttachmentIndex of literal_integer
@@ -514,7 +514,8 @@ type id =
     | `OpSpecConstantComposite of id_result_type * id_result * id_ref list
     | `OpSpecConstantOp of id_result_type * id_result
                            * literal_spec_constant_op_integer
-    | `OpFunction of id_result_type * id_result * function_control * id_ref
+    | `OpFunction of id_result_type * id_result * function_control list
+                     * id_ref
     | `OpFunctionParameter of id_result_type * id_result
     | `OpFunctionEnd
     | `OpFunctionCall of id_result_type * id_result * id_ref * id_ref list
@@ -522,10 +523,12 @@ type id =
                      * id_ref option
     | `OpImageTexelPointer of id_result_type * id_result * id_ref * id_ref
                               * id_ref
-    | `OpLoad of id_result_type * id_result * id_ref * memory_access option
-    | `OpStore of id_ref * id_ref * memory_access option
-    | `OpCopyMemory of id_ref * id_ref * memory_access option
-    | `OpCopyMemorySized of id_ref * id_ref * id_ref * memory_access option
+    | `OpLoad of id_result_type * id_result * id_ref
+                 * (memory_access list) option
+    | `OpStore of id_ref * id_ref * (memory_access list) option
+    | `OpCopyMemory of id_ref * id_ref * (memory_access list) option
+    | `OpCopyMemorySized of id_ref * id_ref * id_ref
+                            * (memory_access list) option
     | `OpAccessChain of id_result_type * id_result * id_ref * id_ref list
     | `OpInBoundsAccessChain of id_result_type * id_result * id_ref
                                 * id_ref list
@@ -554,33 +557,36 @@ type id =
     | `OpTranspose of id_result_type * id_result * id_ref
     | `OpSampledImage of id_result_type * id_result * id_ref * id_ref
     | `OpImageSampleImplicitLod of id_result_type * id_result * id_ref
-                                   * id_ref * image_operands option
+                                   * id_ref * (image_operands list) option
     | `OpImageSampleExplicitLod of id_result_type * id_result * id_ref
-                                   * id_ref * image_operands
+                                   * id_ref * image_operands list
     | `OpImageSampleDrefImplicitLod of id_result_type * id_result * id_ref
                                        * id_ref * id_ref
-                                       * image_operands option
+                                       * (image_operands list) option
     | `OpImageSampleDrefExplicitLod of id_result_type * id_result * id_ref
-                                       * id_ref * id_ref * image_operands
+                                       * id_ref * id_ref
+                                       * image_operands list
     | `OpImageSampleProjImplicitLod of id_result_type * id_result * id_ref
-                                       * id_ref * image_operands option
+                                       * id_ref
+                                       * (image_operands list) option
     | `OpImageSampleProjExplicitLod of id_result_type * id_result * id_ref
-                                       * id_ref * image_operands
+                                       * id_ref * image_operands list
     | `OpImageSampleProjDrefImplicitLod of id_result_type * id_result
                                            * id_ref * id_ref * id_ref
-                                           * image_operands option
+                                           * (image_operands list) option
     | `OpImageSampleProjDrefExplicitLod of id_result_type * id_result
                                            * id_ref * id_ref * id_ref
-                                           * image_operands
+                                           * image_operands list
     | `OpImageFetch of id_result_type * id_result * id_ref * id_ref
-                       * image_operands option
+                       * (image_operands list) option
     | `OpImageGather of id_result_type * id_result * id_ref * id_ref * id_ref
-                        * image_operands option
+                        * (image_operands list) option
     | `OpImageDrefGather of id_result_type * id_result * id_ref * id_ref
-                            * id_ref * image_operands option
+                            * id_ref * (image_operands list) option
     | `OpImageRead of id_result_type * id_result * id_ref * id_ref
-                      * image_operands option
-    | `OpImageWrite of id_ref * id_ref * id_ref * image_operands option
+                      * (image_operands list) option
+    | `OpImageWrite of id_ref * id_ref * id_ref
+                       * (image_operands list) option
     | `OpImage of id_result_type * id_result * id_ref
     | `OpImageQueryFormat of id_result_type * id_result * id_ref
     | `OpImageQueryOrder of id_result_type * id_result * id_ref
@@ -736,8 +742,8 @@ type id =
     | `OpAtomicXor of id_result_type * id_result * id_ref * id_scope
                       * id_memory_semantics * id_ref
     | `OpPhi of id_result_type * id_result * pair_id_ref_id_ref list
-    | `OpLoopMerge of id_ref * id_ref * loop_control
-    | `OpSelectionMerge of id_ref * selection_control
+    | `OpLoopMerge of id_ref * id_ref * loop_control list
+    | `OpSelectionMerge of id_ref * selection_control list
     | `OpLabel of id_result
     | `OpBranch of id_ref
     | `OpBranchConditional of id_ref * id_ref * id_ref * literal_integer list
@@ -823,40 +829,43 @@ type id =
     | `OpBuildNDRange of id_result_type * id_result * id_ref * id_ref
                          * id_ref
     | `OpImageSparseSampleImplicitLod of id_result_type * id_result * id_ref
-                                         * id_ref * image_operands option
+                                         * id_ref
+                                         * (image_operands list) option
     | `OpImageSparseSampleExplicitLod of id_result_type * id_result * id_ref
-                                         * id_ref * image_operands
+                                         * id_ref * image_operands list
     | `OpImageSparseSampleDrefImplicitLod of id_result_type * id_result
                                              * id_ref * id_ref * id_ref
-                                             * image_operands option
+                                             * (image_operands list) option
     | `OpImageSparseSampleDrefExplicitLod of id_result_type * id_result
                                              * id_ref * id_ref * id_ref
-                                             * image_operands
+                                             * image_operands list
     | `OpImageSparseSampleProjImplicitLod of id_result_type * id_result
                                              * id_ref * id_ref
-                                             * image_operands option
+                                             * (image_operands list) option
     | `OpImageSparseSampleProjExplicitLod of id_result_type * id_result
                                              * id_ref * id_ref
-                                             * image_operands
+                                             * image_operands list
     | `OpImageSparseSampleProjDrefImplicitLod of id_result_type * id_result
                                                  * id_ref * id_ref * id_ref
-                                                 * image_operands option
+                                                 * (image_operands list)
+                                                     option
     | `OpImageSparseSampleProjDrefExplicitLod of id_result_type * id_result
                                                  * id_ref * id_ref * id_ref
-                                                 * image_operands
+                                                 * image_operands list
     | `OpImageSparseFetch of id_result_type * id_result * id_ref * id_ref
-                             * image_operands option
+                             * (image_operands list) option
     | `OpImageSparseGather of id_result_type * id_result * id_ref * id_ref
-                              * id_ref * image_operands option
+                              * id_ref * (image_operands list) option
     | `OpImageSparseDrefGather of id_result_type * id_result * id_ref
-                                  * id_ref * id_ref * image_operands option
+                                  * id_ref * id_ref
+                                  * (image_operands list) option
     | `OpImageSparseTexelsResident of id_result_type * id_result * id_ref
     | `OpNoLine
     | `OpAtomicFlagTestAndSet of id_result_type * id_result * id_ref
                                  * id_scope * id_memory_semantics
     | `OpAtomicFlagClear of id_ref * id_scope * id_memory_semantics
     | `OpImageSparseRead of id_result_type * id_result * id_ref * id_ref
-                            * image_operands option
+                            * (image_operands list) option
     | `OpSizeOf of id_result_type * id_result * id_ref
     | `OpTypePipeStorage of id_result
     | `OpConstantPipeStorage of id_result_type * id_result * literal_integer
@@ -1010,77 +1019,111 @@ let words_of_pair_literal_integer_id_ref (n, i) =
 let words_of_pair_id_ref_literal_integer (i, n) =
   [ word_of_id i; word_of_int n ];;
 let words_of_pair_id_ref_id_ref (a, b) = [ word_of_id a; word_of_id b ];;
-let words_of_image_operands (v : image_operands) =
-  match v with
-  | ImageOperandsNone -> [ 0x0000l ]
-  | ImageOperandsBias a -> [ 0x0001l; word_of_id a ]
-  | ImageOperandsLod a -> [ 0x0002l; word_of_id a ]
-  | ImageOperandsGrad (a, b) -> [ 0x0004l; word_of_id a; word_of_id b ]
-  | ImageOperandsConstOffset a -> [ 0x0008l; word_of_id a ]
-  | ImageOperandsOffset a -> [ 0x0010l; word_of_id a ]
-  | ImageOperandsConstOffsets a -> [ 0x0020l; word_of_id a ]
-  | ImageOperandsSample a -> [ 0x0040l; word_of_id a ]
-  | ImageOperandsMinLod a -> [ 0x0080l; word_of_id a ];;
-let word_of_f_p_fast_math_mode (v : f_p_fast_math_mode) =
-  match v with
-  | FPFastMathModeNone -> 0x0000l
-  | FPFastMathModeNotNaN -> 0x0001l
-  | FPFastMathModeNotInf -> 0x0002l
-  | FPFastMathModeNSZ -> 0x0004l
-  | FPFastMathModeAllowRecip -> 0x0008l
-  | FPFastMathModeFast -> 0x0010l;;
-let word_of_selection_control (v : selection_control) =
-  match v with
-  | SelectionControlNone -> 0x0000l
-  | SelectionControlFlatten -> 0x0001l
-  | SelectionControlDontFlatten -> 0x0002l;;
-let words_of_loop_control (v : loop_control) =
-  match v with
-  | LoopControlNone -> [ 0x0000l ]
-  | LoopControlUnroll -> [ 0x0001l ]
-  | LoopControlDontUnroll -> [ 0x0002l ]
-  | LoopControlDependencyInfinite -> [ 0x0004l ]
-  | LoopControlDependencyLength a -> [ 0x0008l; word_of_int a ];;
-let word_of_function_control (v : function_control) =
-  match v with
-  | FunctionControlNone -> 0x0000l
-  | FunctionControlInline -> 0x0001l
-  | FunctionControlDontInline -> 0x0002l
-  | FunctionControlPure -> 0x0004l
-  | FunctionControlConst -> 0x0008l;;
-let word_of_memory_semantics (v : memory_semantics) =
-  match v with
-  | MemorySemanticsRelaxed -> 0x0000l
-  | MemorySemanticsNone -> 0x0000l
-  | MemorySemanticsAcquire -> 0x0002l
-  | MemorySemanticsRelease -> 0x0004l
-  | MemorySemanticsAcquireRelease -> 0x0008l
-  | MemorySemanticsSequentiallyConsistent -> 0x0010l
-  | MemorySemanticsUniformMemory -> 0x0040l
-  | MemorySemanticsSubgroupMemory -> 0x0080l
-  | MemorySemanticsWorkgroupMemory -> 0x0100l
-  | MemorySemanticsCrossWorkgroupMemory -> 0x0200l
-  | MemorySemanticsAtomicCounterMemory -> 0x0400l
-  | MemorySemanticsImageMemory -> 0x0800l;;
-let words_of_memory_access (v : memory_access) =
-  match v with
-  | MemoryAccessNone -> [ 0x0000l ]
-  | MemoryAccessVolatile -> [ 0x0001l ]
-  | MemoryAccessAligned a -> [ 0x0002l; word_of_int a ]
-  | MemoryAccessNontemporal -> [ 0x0004l ];;
-let word_of_kernel_profiling_info (v : kernel_profiling_info) =
-  match v with
-  | KernelProfilingInfoNone -> 0x0000l
-  | KernelProfilingInfoCmdExecTime -> 0x0001l;;
-let word_of_source_language (v : source_language) =
-  match v with
+let words_of_image_operands (flags : image_operands list) =
+  let split flag =
+    match flag with
+    | ImageOperandsNone -> (0x0000l, [])
+    | ImageOperandsBias a -> (0x0001l, [ 0x0001l; word_of_id a ])
+    | ImageOperandsLod a -> (0x0002l, [ 0x0002l; word_of_id a ])
+    | ImageOperandsGrad (a, b) ->
+        (0x0004l, [ 0x0004l; word_of_id a; word_of_id b ])
+    | ImageOperandsConstOffset a -> (0x0008l, [ 0x0008l; word_of_id a ])
+    | ImageOperandsOffset a -> (0x0010l, [ 0x0010l; word_of_id a ])
+    | ImageOperandsConstOffsets a -> (0x0020l, [ 0x0020l; word_of_id a ])
+    | ImageOperandsSample a -> (0x0040l, [ 0x0040l; word_of_id a ])
+    | ImageOperandsMinLod a -> (0x0080l, [ 0x0080l; word_of_id a ]) in
+  let combine_split_flags (a_flag, a_ops) (b_flag, b_ops) =
+    ((Int32.logor a_flag b_flag), (a_ops @ b_ops)) in
+  let (flag, ops) =
+    List.fold_left combine_split_flags (0l, []) (List.map split flags)
+  in flag :: ops;;
+let word_of_f_p_fast_math_mode (flags : f_p_fast_math_mode list) =
+  let flag_value flag =
+    match flag with
+    | FPFastMathModeNone -> 0x0000l
+    | FPFastMathModeNotNaN -> 0x0001l
+    | FPFastMathModeNotInf -> 0x0002l
+    | FPFastMathModeNSZ -> 0x0004l
+    | FPFastMathModeAllowRecip -> 0x0008l
+    | FPFastMathModeFast -> 0x0010l in
+  let fold_flag base flag = Int32.logor base (flag_value flag)
+  in List.fold_left fold_flag 0l flags;;
+let word_of_selection_control (flags : selection_control list) =
+  let flag_value flag =
+    match flag with
+    | SelectionControlNone -> 0x0000l
+    | SelectionControlFlatten -> 0x0001l
+    | SelectionControlDontFlatten -> 0x0002l in
+  let fold_flag base flag = Int32.logor base (flag_value flag)
+  in List.fold_left fold_flag 0l flags;;
+let words_of_loop_control (flags : loop_control list) =
+  let split flag =
+    match flag with
+    | LoopControlNone -> (0x0000l, [])
+    | LoopControlUnroll -> (0x0001l, [])
+    | LoopControlDontUnroll -> (0x0002l, [])
+    | LoopControlDependencyInfinite -> (0x0004l, [])
+    | LoopControlDependencyLength a -> (0x0008l, [ 0x0008l; word_of_int a ]) in
+  let combine_split_flags (a_flag, a_ops) (b_flag, b_ops) =
+    ((Int32.logor a_flag b_flag), (a_ops @ b_ops)) in
+  let (flag, ops) =
+    List.fold_left combine_split_flags (0l, []) (List.map split flags)
+  in flag :: ops;;
+let word_of_function_control (flags : function_control list) =
+  let flag_value flag =
+    match flag with
+    | FunctionControlNone -> 0x0000l
+    | FunctionControlInline -> 0x0001l
+    | FunctionControlDontInline -> 0x0002l
+    | FunctionControlPure -> 0x0004l
+    | FunctionControlConst -> 0x0008l in
+  let fold_flag base flag = Int32.logor base (flag_value flag)
+  in List.fold_left fold_flag 0l flags;;
+let word_of_memory_semantics (flags : memory_semantics list) =
+  let flag_value flag =
+    match flag with
+    | MemorySemanticsRelaxed -> 0x0000l
+    | MemorySemanticsNone -> 0x0000l
+    | MemorySemanticsAcquire -> 0x0002l
+    | MemorySemanticsRelease -> 0x0004l
+    | MemorySemanticsAcquireRelease -> 0x0008l
+    | MemorySemanticsSequentiallyConsistent -> 0x0010l
+    | MemorySemanticsUniformMemory -> 0x0040l
+    | MemorySemanticsSubgroupMemory -> 0x0080l
+    | MemorySemanticsWorkgroupMemory -> 0x0100l
+    | MemorySemanticsCrossWorkgroupMemory -> 0x0200l
+    | MemorySemanticsAtomicCounterMemory -> 0x0400l
+    | MemorySemanticsImageMemory -> 0x0800l in
+  let fold_flag base flag = Int32.logor base (flag_value flag)
+  in List.fold_left fold_flag 0l flags;;
+let words_of_memory_access (flags : memory_access list) =
+  let split flag =
+    match flag with
+    | MemoryAccessNone -> (0x0000l, [])
+    | MemoryAccessVolatile -> (0x0001l, [])
+    | MemoryAccessAligned a -> (0x0002l, [ 0x0002l; word_of_int a ])
+    | MemoryAccessNontemporal -> (0x0004l, []) in
+  let combine_split_flags (a_flag, a_ops) (b_flag, b_ops) =
+    ((Int32.logor a_flag b_flag), (a_ops @ b_ops)) in
+  let (flag, ops) =
+    List.fold_left combine_split_flags (0l, []) (List.map split flags)
+  in flag :: ops;;
+let word_of_kernel_profiling_info (flags : kernel_profiling_info list) =
+  let flag_value flag =
+    match flag with
+    | KernelProfilingInfoNone -> 0x0000l
+    | KernelProfilingInfoCmdExecTime -> 0x0001l in
+  let fold_flag base flag = Int32.logor base (flag_value flag)
+  in List.fold_left fold_flag 0l flags;;
+let word_of_source_language (enum : source_language) =
+  match enum with
   | SourceLanguageUnknown -> 0l
   | SourceLanguageESSL -> 1l
   | SourceLanguageGLSL -> 2l
   | SourceLanguageOpenCL_C -> 3l
   | SourceLanguageOpenCL_CPP -> 4l;;
-let word_of_execution_model (v : execution_model) =
-  match v with
+let word_of_execution_model (enum : execution_model) =
+  match enum with
   | ExecutionModelVertex -> 0l
   | ExecutionModelTessellationControl -> 1l
   | ExecutionModelTessellationEvaluation -> 2l
@@ -1088,18 +1131,18 @@ let word_of_execution_model (v : execution_model) =
   | ExecutionModelFragment -> 4l
   | ExecutionModelGLCompute -> 5l
   | ExecutionModelKernel -> 6l;;
-let word_of_addressing_model (v : addressing_model) =
-  match v with
+let word_of_addressing_model (enum : addressing_model) =
+  match enum with
   | AddressingModelLogical -> 0l
   | AddressingModelPhysical32 -> 1l
   | AddressingModelPhysical64 -> 2l;;
-let word_of_memory_model (v : memory_model) =
-  match v with
+let word_of_memory_model (enum : memory_model) =
+  match enum with
   | MemoryModelSimple -> 0l
   | MemoryModelGLSL450 -> 1l
   | MemoryModelOpenCL -> 2l;;
-let words_of_execution_mode (v : execution_mode) =
-  match v with
+let words_of_execution_mode (enum : execution_mode) =
+  match enum with
   | ExecutionModeInvocations a -> [ 0l; word_of_int a ]
   | ExecutionModeSpacingEqual -> [ 1l ]
   | ExecutionModeSpacingFractionalEven -> [ 2l ]
@@ -1137,8 +1180,8 @@ let words_of_execution_mode (v : execution_mode) =
   | ExecutionModeFinalizer -> [ 34l ]
   | ExecutionModeSubgroupSize a -> [ 35l; word_of_int a ]
   | ExecutionModeSubgroupsPerWorkgroup a -> [ 36l; word_of_int a ];;
-let word_of_storage_class (v : storage_class) =
-  match v with
+let word_of_storage_class (enum : storage_class) =
+  match enum with
   | StorageClassUniformConstant -> 0l
   | StorageClassInput -> 1l
   | StorageClassUniform -> 2l
@@ -1151,8 +1194,8 @@ let word_of_storage_class (v : storage_class) =
   | StorageClassPushConstant -> 9l
   | StorageClassAtomicCounter -> 10l
   | StorageClassImage -> 11l;;
-let word_of_dim (v : dim) =
-  match v with
+let word_of_dim (enum : dim) =
+  match enum with
   | Dim1D -> 0l
   | Dim2D -> 1l
   | Dim3D -> 2l
@@ -1160,19 +1203,19 @@ let word_of_dim (v : dim) =
   | DimRect -> 4l
   | DimBuffer -> 5l
   | DimSubpassData -> 6l;;
-let word_of_sampler_addressing_mode (v : sampler_addressing_mode) =
-  match v with
+let word_of_sampler_addressing_mode (enum : sampler_addressing_mode) =
+  match enum with
   | SamplerAddressingModeNone -> 0l
   | SamplerAddressingModeClampToEdge -> 1l
   | SamplerAddressingModeClamp -> 2l
   | SamplerAddressingModeRepeat -> 3l
   | SamplerAddressingModeRepeatMirrored -> 4l;;
-let word_of_sampler_filter_mode (v : sampler_filter_mode) =
-  match v with
+let word_of_sampler_filter_mode (enum : sampler_filter_mode) =
+  match enum with
   | SamplerFilterModeNearest -> 0l
   | SamplerFilterModeLinear -> 1l;;
-let word_of_image_format (v : image_format) =
-  match v with
+let word_of_image_format (enum : image_format) =
+  match enum with
   | ImageFormatUnknown -> 0l
   | ImageFormatRgba32f -> 1l
   | ImageFormatRgba16f -> 2l
@@ -1213,8 +1256,8 @@ let word_of_image_format (v : image_format) =
   | ImageFormatRg8ui -> 37l
   | ImageFormatR16ui -> 38l
   | ImageFormatR8ui -> 39l;;
-let word_of_image_channel_order (v : image_channel_order) =
-  match v with
+let word_of_image_channel_order (enum : image_channel_order) =
+  match enum with
   | ImageChannelOrderR -> 0l
   | ImageChannelOrderA -> 1l
   | ImageChannelOrderRG -> 2l
@@ -1235,8 +1278,8 @@ let word_of_image_channel_order (v : image_channel_order) =
   | ImageChannelOrderSRGBA -> 17l
   | ImageChannelOrderSBGRA -> 18l
   | ImageChannelOrderABGR -> 19l;;
-let word_of_image_channel_data_type (v : image_channel_data_type) =
-  match v with
+let word_of_image_channel_data_type (enum : image_channel_data_type) =
+  match enum with
   | ImageChannelDataTypeSnormInt8 -> 0l
   | ImageChannelDataTypeSnormInt16 -> 1l
   | ImageChannelDataTypeUnormInt8 -> 2l
@@ -1254,21 +1297,23 @@ let word_of_image_channel_data_type (v : image_channel_data_type) =
   | ImageChannelDataTypeFloat -> 14l
   | ImageChannelDataTypeUnormInt24 -> 15l
   | ImageChannelDataTypeUnormInt101010_2 -> 16l;;
-let word_of_f_p_rounding_mode (v : f_p_rounding_mode) =
-  match v with
+let word_of_f_p_rounding_mode (enum : f_p_rounding_mode) =
+  match enum with
   | FPRoundingModeRTE -> 0l
   | FPRoundingModeRTZ -> 1l
   | FPRoundingModeRTP -> 2l
   | FPRoundingModeRTN -> 3l;;
-let word_of_linkage_type (v : linkage_type) =
-  match v with | LinkageTypeExport -> 0l | LinkageTypeImport -> 1l;;
-let word_of_access_qualifier (v : access_qualifier) =
-  match v with
+let word_of_linkage_type (enum : linkage_type) =
+  match enum with | LinkageTypeExport -> 0l | LinkageTypeImport -> 1l;;
+let word_of_access_qualifier (enum : access_qualifier) =
+  match enum with
   | AccessQualifierReadOnly -> 0l
   | AccessQualifierWriteOnly -> 1l
   | AccessQualifierReadWrite -> 2l;;
-let word_of_function_parameter_attribute (v : function_parameter_attribute) =
-  match v with
+let word_of_function_parameter_attribute (enum :
+                                          function_parameter_attribute)
+                                         =
+  match enum with
   | FunctionParameterAttributeZext -> 0l
   | FunctionParameterAttributeSext -> 1l
   | FunctionParameterAttributeByVal -> 2l
@@ -1277,8 +1322,8 @@ let word_of_function_parameter_attribute (v : function_parameter_attribute) =
   | FunctionParameterAttributeNoCapture -> 5l
   | FunctionParameterAttributeNoWrite -> 6l
   | FunctionParameterAttributeNoReadWrite -> 7l;;
-let word_of_built_in (v : built_in) =
-  match v with
+let word_of_built_in (enum : built_in) =
+  match enum with
   | BuiltInPosition -> 0l
   | BuiltInPointSize -> 1l
   | BuiltInClipDistance -> 3l
@@ -1328,25 +1373,25 @@ let word_of_built_in (v : built_in) =
   | BuiltInBaseVertex -> 4424l
   | BuiltInBaseInstance -> 4425l
   | BuiltInDrawIndex -> 4426l;;
-let word_of_scope (v : scope) =
-  match v with
+let word_of_scope (enum : scope) =
+  match enum with
   | ScopeCrossDevice -> 0l
   | ScopeDevice -> 1l
   | ScopeWorkgroup -> 2l
   | ScopeSubgroup -> 3l
   | ScopeInvocation -> 4l;;
-let word_of_group_operation (v : group_operation) =
-  match v with
+let word_of_group_operation (enum : group_operation) =
+  match enum with
   | GroupOperationReduce -> 0l
   | GroupOperationInclusiveScan -> 1l
   | GroupOperationExclusiveScan -> 2l;;
-let word_of_kernel_enqueue_flags (v : kernel_enqueue_flags) =
-  match v with
+let word_of_kernel_enqueue_flags (enum : kernel_enqueue_flags) =
+  match enum with
   | KernelEnqueueFlagsNoWait -> 0l
   | KernelEnqueueFlagsWaitKernel -> 1l
   | KernelEnqueueFlagsWaitWorkGroup -> 2l;;
-let word_of_capability (v : capability) =
-  match v with
+let word_of_capability (enum : capability) =
+  match enum with
   | CapabilityMatrix -> 0l
   | CapabilityShader -> 1l
   | CapabilityGeometry -> 2l
@@ -1408,8 +1453,8 @@ let word_of_capability (v : capability) =
   | CapabilityPipeStorage -> 60l
   | CapabilitySubgroupBallotKHR -> 4423l
   | CapabilityDrawParameters -> 4427l;;
-let words_of_decoration (v : decoration) =
-  match v with
+let words_of_decoration (enum : decoration) =
+  match enum with
   | DecorationRelaxedPrecision -> [ 0l ]
   | DecorationSpecId a -> [ 1l; word_of_int a ]
   | DecorationBlock -> [ 2l ]

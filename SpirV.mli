@@ -448,7 +448,7 @@ type id =
   | DecorationXfbStride of literal_integer
   | DecorationFuncParamAttr of function_parameter_attribute
   | DecorationFPRoundingMode of f_p_rounding_mode
-  | DecorationFPFastMathMode of f_p_fast_math_mode
+  | DecorationFPFastMathMode of f_p_fast_math_mode list
   | DecorationLinkageAttributes of literal_string * linkage_type
   | DecorationNoContraction
   | DecorationInputAttachmentIndex of literal_integer
@@ -514,7 +514,8 @@ type id =
     | `OpSpecConstantComposite of id_result_type * id_result * id_ref list
     | `OpSpecConstantOp of id_result_type * id_result
                            * literal_spec_constant_op_integer
-    | `OpFunction of id_result_type * id_result * function_control * id_ref
+    | `OpFunction of id_result_type * id_result * function_control list
+                     * id_ref
     | `OpFunctionParameter of id_result_type * id_result
     | `OpFunctionEnd
     | `OpFunctionCall of id_result_type * id_result * id_ref * id_ref list
@@ -522,10 +523,12 @@ type id =
                      * id_ref option
     | `OpImageTexelPointer of id_result_type * id_result * id_ref * id_ref
                               * id_ref
-    | `OpLoad of id_result_type * id_result * id_ref * memory_access option
-    | `OpStore of id_ref * id_ref * memory_access option
-    | `OpCopyMemory of id_ref * id_ref * memory_access option
-    | `OpCopyMemorySized of id_ref * id_ref * id_ref * memory_access option
+    | `OpLoad of id_result_type * id_result * id_ref
+                 * (memory_access list) option
+    | `OpStore of id_ref * id_ref * (memory_access list) option
+    | `OpCopyMemory of id_ref * id_ref * (memory_access list) option
+    | `OpCopyMemorySized of id_ref * id_ref * id_ref
+                            * (memory_access list) option
     | `OpAccessChain of id_result_type * id_result * id_ref * id_ref list
     | `OpInBoundsAccessChain of id_result_type * id_result * id_ref
                                 * id_ref list
@@ -554,33 +557,36 @@ type id =
     | `OpTranspose of id_result_type * id_result * id_ref
     | `OpSampledImage of id_result_type * id_result * id_ref * id_ref
     | `OpImageSampleImplicitLod of id_result_type * id_result * id_ref
-                                   * id_ref * image_operands option
+                                   * id_ref * (image_operands list) option
     | `OpImageSampleExplicitLod of id_result_type * id_result * id_ref
-                                   * id_ref * image_operands
+                                   * id_ref * image_operands list
     | `OpImageSampleDrefImplicitLod of id_result_type * id_result * id_ref
                                        * id_ref * id_ref
-                                       * image_operands option
+                                       * (image_operands list) option
     | `OpImageSampleDrefExplicitLod of id_result_type * id_result * id_ref
-                                       * id_ref * id_ref * image_operands
+                                       * id_ref * id_ref
+                                       * image_operands list
     | `OpImageSampleProjImplicitLod of id_result_type * id_result * id_ref
-                                       * id_ref * image_operands option
+                                       * id_ref
+                                       * (image_operands list) option
     | `OpImageSampleProjExplicitLod of id_result_type * id_result * id_ref
-                                       * id_ref * image_operands
+                                       * id_ref * image_operands list
     | `OpImageSampleProjDrefImplicitLod of id_result_type * id_result
                                            * id_ref * id_ref * id_ref
-                                           * image_operands option
+                                           * (image_operands list) option
     | `OpImageSampleProjDrefExplicitLod of id_result_type * id_result
                                            * id_ref * id_ref * id_ref
-                                           * image_operands
+                                           * image_operands list
     | `OpImageFetch of id_result_type * id_result * id_ref * id_ref
-                       * image_operands option
+                       * (image_operands list) option
     | `OpImageGather of id_result_type * id_result * id_ref * id_ref * id_ref
-                        * image_operands option
+                        * (image_operands list) option
     | `OpImageDrefGather of id_result_type * id_result * id_ref * id_ref
-                            * id_ref * image_operands option
+                            * id_ref * (image_operands list) option
     | `OpImageRead of id_result_type * id_result * id_ref * id_ref
-                      * image_operands option
-    | `OpImageWrite of id_ref * id_ref * id_ref * image_operands option
+                      * (image_operands list) option
+    | `OpImageWrite of id_ref * id_ref * id_ref
+                       * (image_operands list) option
     | `OpImage of id_result_type * id_result * id_ref
     | `OpImageQueryFormat of id_result_type * id_result * id_ref
     | `OpImageQueryOrder of id_result_type * id_result * id_ref
@@ -736,8 +742,8 @@ type id =
     | `OpAtomicXor of id_result_type * id_result * id_ref * id_scope
                       * id_memory_semantics * id_ref
     | `OpPhi of id_result_type * id_result * pair_id_ref_id_ref list
-    | `OpLoopMerge of id_ref * id_ref * loop_control
-    | `OpSelectionMerge of id_ref * selection_control
+    | `OpLoopMerge of id_ref * id_ref * loop_control list
+    | `OpSelectionMerge of id_ref * selection_control list
     | `OpLabel of id_result
     | `OpBranch of id_ref
     | `OpBranchConditional of id_ref * id_ref * id_ref * literal_integer list
@@ -823,40 +829,43 @@ type id =
     | `OpBuildNDRange of id_result_type * id_result * id_ref * id_ref
                          * id_ref
     | `OpImageSparseSampleImplicitLod of id_result_type * id_result * id_ref
-                                         * id_ref * image_operands option
+                                         * id_ref
+                                         * (image_operands list) option
     | `OpImageSparseSampleExplicitLod of id_result_type * id_result * id_ref
-                                         * id_ref * image_operands
+                                         * id_ref * image_operands list
     | `OpImageSparseSampleDrefImplicitLod of id_result_type * id_result
                                              * id_ref * id_ref * id_ref
-                                             * image_operands option
+                                             * (image_operands list) option
     | `OpImageSparseSampleDrefExplicitLod of id_result_type * id_result
                                              * id_ref * id_ref * id_ref
-                                             * image_operands
+                                             * image_operands list
     | `OpImageSparseSampleProjImplicitLod of id_result_type * id_result
                                              * id_ref * id_ref
-                                             * image_operands option
+                                             * (image_operands list) option
     | `OpImageSparseSampleProjExplicitLod of id_result_type * id_result
                                              * id_ref * id_ref
-                                             * image_operands
+                                             * image_operands list
     | `OpImageSparseSampleProjDrefImplicitLod of id_result_type * id_result
                                                  * id_ref * id_ref * id_ref
-                                                 * image_operands option
+                                                 * (image_operands list)
+                                                     option
     | `OpImageSparseSampleProjDrefExplicitLod of id_result_type * id_result
                                                  * id_ref * id_ref * id_ref
-                                                 * image_operands
+                                                 * image_operands list
     | `OpImageSparseFetch of id_result_type * id_result * id_ref * id_ref
-                             * image_operands option
+                             * (image_operands list) option
     | `OpImageSparseGather of id_result_type * id_result * id_ref * id_ref
-                              * id_ref * image_operands option
+                              * id_ref * (image_operands list) option
     | `OpImageSparseDrefGather of id_result_type * id_result * id_ref
-                                  * id_ref * id_ref * image_operands option
+                                  * id_ref * id_ref
+                                  * (image_operands list) option
     | `OpImageSparseTexelsResident of id_result_type * id_result * id_ref
     | `OpNoLine
     | `OpAtomicFlagTestAndSet of id_result_type * id_result * id_ref
                                  * id_scope * id_memory_semantics
     | `OpAtomicFlagClear of id_ref * id_scope * id_memory_semantics
     | `OpImageSparseRead of id_result_type * id_result * id_ref * id_ref
-                            * image_operands option
+                            * (image_operands list) option
     | `OpSizeOf of id_result_type * id_result * id_ref
     | `OpTypePipeStorage of id_result
     | `OpConstantPipeStorage of id_result_type * id_result * literal_integer

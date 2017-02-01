@@ -244,7 +244,7 @@ module Parsing = struct
         if List.for_all ((not) <=< enumerant_has_parameters) enumerants
           then NonParameterized else Parameterized
       in
-      Enum (raw_kind_name, kind_name, (Bit, parameterization), enumerants)
+      Enum (raw_kind_name, kind_name, (ty, parameterization), enumerants)
     in
 
     match to_string @@ member "category" obj with
@@ -303,7 +303,6 @@ module Parsing = struct
       kinds = spv_kinds;
       instructions = spv_instructions;
       spec_op_constants = spv_spec_op_constants }
-
 end
 
 
@@ -481,29 +480,48 @@ let build_kind_typedef (name, t) =
   let tuple = Templates.type_sta_tuple_of_ls @@ List.map Templates.ty_id_lid type_name in
   Templates.typedef name tuple
 
+let type_list_of_kind_and_quantifier kind quantifier =
+  let type_prefix_of_quantifier = function
+    | Some Optional -> ["option"]
+    | Some Variadic -> ["list"]
+    | None          -> []
+  in
+
+  let type_prefix_of_kind = function
+    | Enum (_, _, (Bit, _), _) -> ["list"]
+    | _                        -> []
+  in
+
+  let quantifier_prefix = type_prefix_of_quantifier quantifier in
+  let kind_prefix = type_prefix_of_kind kind in
+  quantifier_prefix @ kind_prefix @ [Util.ocaml_name_of_kind kind]
+
 let build_enum_typedef (name, _, enumerants) =
-  let parameters_ast params =
-    let kind_name_of_parameter p = p.parameter_kind_name in
-    Templates.type_tuple_of_ls @@ List.map (Templates.ty_id_lid <=< kind_name_of_parameter) params
+  let list_of_parameter = function
+    | { parameter_kind = Some kind; _ } -> type_list_of_kind_and_quantifier kind None
+    | _                                 -> failwith "impossible case"
+  in
+  let type_tuple_of_parameters params =
+    params
+      |> List.map list_of_parameter
+      |> List.map Templates.type_app_of_ls
+      |> Templates.type_tuple_of_ls
   in
   let convert_parameters = function
     | []     -> None
-    | _ as p -> Some (parameters_ast p)
+    | _ as p -> Some (type_tuple_of_parameters p)
   in
   let convert_variant enum = (enum.enumerant_name, convert_parameters enum.enumerant_parameters) in
   let variants = Templates.variants @@ List.map convert_variant enumerants in
   Templates.typedef name variants
 
 let type_tuple_of_operands operands = 
-  let list_of_operand = function
-    | { operand_kind = kind; quantifier = Some Optional; _ } -> ["option"; Util.ocaml_name_of_kind kind]
-    | { operand_kind = kind; quantifier = Some Variadic; _ } -> ["list"; Util.ocaml_name_of_kind kind]
-    | { operand_kind = kind; quantifier = None; _ }          -> [Util.ocaml_name_of_kind kind]
-  in
+  let list_of_operand op = type_list_of_kind_and_quantifier op.operand_kind op.quantifier in
 
-  let operand_lists = List.map list_of_operand operands in
-  let operand_asts = List.map Templates.type_app_of_ls operand_lists in
-  Templates.type_tuple_of_ls operand_asts
+  operands
+    |> List.map list_of_operand
+    |> List.map Templates.type_app_of_ls
+    |> Templates.type_tuple_of_ls
 
 let build_operands_type_opt = function
   | []       -> None
@@ -653,6 +671,7 @@ let build_words_exp_of_parameterized_enumerant enumerant parameter_names =
   let words_exps = (Scalar, value_exp) :: parameter_words_exps in
   concat_words_exps words_exps
 
+(* TODO: refactor *)
 let build_enum_value_fn (name, (ty, parameterization), enumerants) =
   let match_case_of_enumerant enum =
     let
@@ -672,24 +691,56 @@ let build_enum_value_fn (name, (ty, parameterization), enumerants) =
       | _                       -> failwith "impossible case"
   in
 
+  let split_match_case_of_enumerant enum =
+    let
+      { enumerant_name = name;
+        enumerant_value = value;
+        enumerant_parameters = params }
+          = enum
+    in
+    let value_exp = Templates.ex_int (value ^ "l") in
+    let param_names = Util.generate_names (List.length params) in
+    let operands_exp = match params with
+      | []     -> <:expr< [] >>
+      | params -> build_words_exp_of_parameterized_enumerant enum param_names
+    in
+    ((name, param_names), <:expr< ($value_exp$, $operands_exp$) >>)
+  in
+
   let fn_name = match parameterization with
-    | NonParameterized -> "word_of_" ^ name
+    | NonParameterized -> "word_of_" ^ name 
     | Parameterized    -> "words_of_" ^ name
   in
 
   let name_id = Templates.ty_id_lid name in
   let fn_name_id = Templates.pa_id_lid fn_name in
-  let patterns = Templates.match_cases Templates.Variant @@ List.map match_case_of_enumerant enumerants in
 
-  <:str_item<
-    let $fn_name_id$ = fun (v : $name_id$) ->
-      match v with $patterns$
-   >>
-
-module StaticElements = struct
-  let open_definitions = [
-    <:str_item< open Batteries >>
-  ]
+  match (ty, parameterization) with
+    | (Value, _) ->
+        let patterns = Templates.match_cases Templates.Variant @@ List.map match_case_of_enumerant enumerants in
+        <:str_item<
+          let $fn_name_id$ = fun (enum : $name_id$) ->
+            match enum with $patterns$
+        >>
+    | (Bit, NonParameterized) ->
+        let patterns = Templates.match_cases Templates.Variant @@ List.map match_case_of_enumerant enumerants in
+        <:str_item<
+          let $fn_name_id$ = fun (flags : $name_id$ list) ->
+            let flag_value flag = match flag with $patterns$ in
+            let fold_flag base flag = Int32.logor base (flag_value flag) in
+            List.fold_left fold_flag 0l flags
+        >>
+    | (Bit, Parameterized) ->
+        let split_patterns = Templates.match_cases Templates.Variant @@ List.map split_match_case_of_enumerant enumerants in
+        <:str_item<
+          let $fn_name_id$ = fun (flags : $name_id$ list) ->
+            let split flag = match flag with $split_patterns$ in
+            let combine_split_flags (a_flag, a_ops) (b_flag, b_ops) =
+              (Int32.logor a_flag b_flag, a_ops @ b_ops)
+            in
+            let (flag, ops) = List.fold_left combine_split_flags (0l, []) (List.map split flags) in
+            flag :: ops
+        >> module StaticElements = struct let open_definitions = [ <:str_item< open Batteries >> ]
 
   let module_definitions = [
     <:str_item< module IdMap = Map.Make(Int32) >>

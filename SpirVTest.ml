@@ -89,6 +89,16 @@ let binary_comparison_set_creators : (string * (unit -> op list * string)) list 
       `OpEntryPoint (ExecutionModelGLCompute, func, "f", []);
       `OpExecutionMode (func, ExecutionModeLocalSize (1l, 1l, 1l));
 
+      `OpString (s_1, "a");
+      `OpString (s_2, "ab");
+      `OpString (s_3, "abc");
+      `OpString (s_4, "abcd");
+      `OpString (s_5, "abcde");
+      `OpString (s_6, "abcdef");
+      `OpString (s_7, "abcdefg");
+      `OpString (s_8, "abcdefgh");
+      `OpString (s_9, "this is a really long string");
+
       `OpTypeVoid t_void;
       `OpTypeFunction (t_func, t_void, []);
     ], "
@@ -111,44 +121,63 @@ let binary_comparison_set_creators : (string * (unit -> op list * string)) list 
 "^id t_func^"       = OpTypeFunction "^id t_void^"
     "
   );
-  ("specialization operations", fun () ->
-    let func = 1l in
-    let t_void = 2l in
-    let t_func = 3l in
-    let t_int = 4l in
-    let c_a = 5l in
-    let c_b = 6l in
-    let c_c = 7l in
+  ("bit enums", fun () ->
+    let block = 1l in
+    let t_img = 2l in
+    let img_1 = 3l in
+    let img_2 = 4l in
+    let img_3 = 5l in
+    let simg = 6l in
+    let coord = 7l in
+    let bias = 8l in
+    let c_offset = 9l in
+    let grad_a = 10l in
+    let grad_b = 11l in
+    let sample = 12l in
+    let lod = 13l in
 
     [
-      `OpCapability CapabilityShader;
-      `OpMemoryModel (AddressingModelLogical, MemoryModelSimple);
-      `OpEntryPoint (ExecutionModelGLCompute, func, "f", []);
-      `OpExecutionMode (func, ExecutionModeLocalSize (1l, 1l, 1l));
+      `OpSelectionMerge (block, []);
+      `OpSelectionMerge (block, [SelectionControlFlatten]);
+      `OpSelectionMerge (block, [SelectionControlDontFlatten]);
 
-      `OpTypeVoid t_void;
-      `OpTypeFunction (t_func, t_void, []);
+      `OpImageSampleImplicitLod (t_img, img_1, simg, coord, Some [ImageOperandsBias bias]);
+      `OpImageSampleImplicitLod (t_img, img_2, simg, coord, Some [ImageOperandsConstOffset c_offset; ImageOperandsGrad (grad_a, grad_b)]);
+      `OpImageSampleImplicitLod (t_img, img_3, simg, coord, Some [ImageOperandsOffset c_offset; ImageOperandsSample sample; ImageOperandsMinLod lod; ImageOperandsBias bias]);
+    ], "
+                      OpSelectionMerge "^id block^" None
+                      OpSelectionMerge "^id block^" Flatten
+                      OpSelectionMerge "^id block^" DontFlatten
 
-      `OpTypeInt (t_int, 32l, 1l);
+"^id img_1^"        = OpImageSampleImplicitLod "^id t_img^" "^id simg^" "^id coord^" Bias "^id bias^"
+"^id img_2^"        = OpImageSampleImplicitLod "^id t_img^" "^id simg^" "^id coord^" ConstOffset|Grad "^id c_offset^" "^id grad_a^" "^id grad_b^"
+"^id img_3^"        = OpImageSampleImplicitLod "^id t_img^" "^id simg^" "^id coord^" Offset|Sample|MinLod|Bias "^id c_offset^" "^id sample^" "^id lod^" "^id bias^"
+    "
+  );
+  ("value enums", fun () ->
+    [
+      `OpSource (SourceLanguageUnknown, 0l, None, None);
+      `OpSource (SourceLanguageESSL, 0l, None, None);
+      `OpSource (SourceLanguageGLSL, 0l, None, None);
+      `OpSource (SourceLanguageOpenCL_C, 0l, None, None);
+      `OpSource (SourceLanguageOpenCL_CPP, 0l, None, None);
+    ], "
+      OpSource Unknown 0
+      OpSource ESSL 0
+      OpSource GLSL 0
+      OpSource OpenCL_C 0
+      OpSource OpenCL_CPP 0
+    "
+  );
+  ("specialization operations", fun () ->
+    let t_int = 1l in
+    let c_c = 2l in
+    let c_a = 3l in
+    let c_b = 4l in
 
-      `OpConstant (t_int, c_a, BigInt (Big_int.of_int 100));
-      `OpConstant (t_int, c_b, BigInt (Big_int.of_int 200));
-
+    [
       `OpSpecConstantOp (t_int, c_c, `IAdd (c_a, c_b))
     ], "
-                      OpCapability Shader
-                      OpMemoryModel Logical Simple
-                      OpEntryPoint GLCompute "^id func^" \"f\"
-                      OpExecutionMode "^id func^" LocalSize 1 1 1
-
-"^id t_void^"       = OpTypeVoid
-"^id t_func^"       = OpTypeFunction "^id t_void^"
-
-"^id t_int^"        = OpTypeInt 32 1
-
-"^id c_a^"          = OpConstant "^id t_int^" 100
-"^id c_b^"          = OpConstant "^id t_int^" 200
-
 "^id c_c^"          = OpSpecConstantOp "^id t_int^" IAdd "^id c_a^" "^id c_b^"
     "
   );
@@ -176,7 +205,7 @@ let binary_comparison_set_creators : (string * (unit -> op list * string)) list 
 
       `OpConstant (t_int, c_9, BigInt (Big_int.of_int 9));
 
-      `OpFunction (t_void, func, FunctionControlNone, t_func);
+      `OpFunction (t_void, func, [FunctionControlNone], t_func);
       `OpLabel label;
       `OpExtInst (t_int, r, glsl, fun () -> [0x0001l; c_9]);
     ], "
@@ -310,7 +339,7 @@ let binary_comparison_set_creators : (string * (unit -> op list * string)) list 
       `OpVariable (t_u_struct_p, v_out, StorageClassUniform, None);
       `OpVariable (t_u_struct_p, v_g_index, StorageClassInput, None);
 
-      `OpFunction (t_void, func, FunctionControlNone, t_func);
+      `OpFunction (t_void, func, [FunctionControlNone], t_func);
       `OpLabel label;
       `OpAccessChain (t_in_int_p, g_index_p, v_g_index, [c_zero]);
       `OpLoad (t_int, g_index, g_index_p, None);
@@ -440,9 +469,10 @@ let build_binary_comparison_test (name, fn) =
     | Unix.WSIGNALED n -> assert_failure (Printf.sprintf "spirv-as was killed by signal with exit code %d" n)
     | Unix.WSTOPPED n  -> assert_failure (Printf.sprintf "spirv-as was stopped by signal with exit code %d" n)
   in
-  let fix_generator_code = function
-    | (ma :: (va :: (ga :: ta)), mb :: (vb :: (gb :: tb))) ->
-        (ma :: (va :: (ga :: ta)), mb :: (vb :: (ga :: tb)))
+  let fix_dynamic_header_elements = function
+    (* replaces generator code and id cap *)
+    | (ma :: va :: ga :: ca :: ta, mb :: vb :: _ :: _ :: tb) ->
+        (ma :: va :: ga :: ca :: ta, mb :: vb :: ga :: ca :: tb)
     | _ -> failwith "trim_gen_code called on invalid list"
   in
   name >:: fun _ -> begin
@@ -452,7 +482,7 @@ let build_binary_comparison_test (name, fn) =
     (* IO.write_string out_ch asm_source; *)
     let asm_words = read_all_with IO.read_real_i32 in_ch in
     check_status @@ Unix.close_process_in in_ch;
-    let (op_words, asm_words) = fix_generator_code (op_words, asm_words) in
+    let (op_words, asm_words) = fix_dynamic_header_elements (op_words, asm_words) in
     assert_equal ~pp_diff:pp_diff_words asm_words op_words
   end
 
