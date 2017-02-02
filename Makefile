@@ -5,8 +5,14 @@ all: SpirV.cmi SpirV.cmo
 test: SpirVTest.byte
 	./SpirVTest.byte -output-html-dir test_results
 
-clean:
-	rm -f *.cmi *.cmx *.cmo *.o Generator.byte SpirV.ml SpirV.mli
+clean_all: clean_build clean_generator
+clean: clean_build
+
+clean_build:
+	rm -f *.cmi *.cmx *.cmo *.o 
+
+clean_generator:
+	rm -f Generator.byte SpirV.ml SpirV.mli
 
 install:
 	ocamlfind install spirv META \
@@ -37,10 +43,10 @@ Generator.byte: Generator.ml
 SpirV.cmi: SpirV.mli
 	ocamlfind ocamlc -package batteries -g -c SpirV.mli
 
-SpirV.cmo: SpirV.ml
+SpirV.cmo: SpirV.ml SpirV.cmi
 	ocamlfind ocamlc -package batteries -g -c SpirV.ml
 
-SpirV.cmx: SpirV.ml
+SpirV.cmx: SpirV.ml SpirV.cmi
 	ocamlfind ocamlopt -package batteries -g -c SpirV.ml
 
 SpirVTest.byte: SpirV.cmi SpirV.cmo SpirVTest.ml
