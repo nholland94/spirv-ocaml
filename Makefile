@@ -49,5 +49,8 @@ SpirV.cmo: SpirV.ml SpirV.cmi
 SpirV.cmx: SpirV.ml SpirV.cmi
 	ocamlfind ocamlopt -package batteries -g -c SpirV.ml
 
+SpirV.cmxs: SpirV.cmx
+	ocamlfind ocamlopt -shared -linkall -I . -o SpirV.cmxs SpirV.cmx
+
 SpirVTest.byte: SpirV.cmi SpirV.cmo SpirVTest.ml
 	ocamlfind ocamlc -linkpkg -package oUnit -package batteries -g -o SpirVTest.byte SpirV.cmo SpirVTest.ml
