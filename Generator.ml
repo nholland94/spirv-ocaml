@@ -472,8 +472,8 @@ let conversion_fn_of_kind = function
   | Type (_, _, LiteralSpecConstantOpInteger)  -> <:expr< words_of_spec_op >>
   | Type (_, _, LiteralString)                 -> <:expr< words_of_string >>
   | Type (_, name, Composite _)
-  | Enum (_, name, (_, Parameterized),  _)     -> Templates.ex_id_lid @@ "words_of_" ^ name
-  | Enum (_, name, (_, NonParameterized),  _)  -> Templates.ex_id_lid @@ "word_of_" ^ name
+  | Enum (_, name, (_, Parameterized),  _)     -> let fn = "words_of_" ^ name in <:expr< $lid:fn$ >>
+  | Enum (_, name, (_, NonParameterized),  _)  -> let fn = "word_of_" ^ name in <:expr< $lid:fn$ >>
 
 let build_kind_typedef (name, t) =
   let type_name = ocaml_types_of_spv_type t in
@@ -667,7 +667,6 @@ let words_exp_of_enumerant_parameter (param, binding) =
 let build_words_exp_of_parameterized_enumerant enumerant parameter_names =
   let parameter_bindings = List.map Templates.ex_id_lid parameter_names in
   let parameter_words_exps = List.map words_exp_of_enumerant_parameter @@ List.combine enumerant.enumerant_parameters parameter_bindings in
-  let words_exps = parameter_words_exps in
   concat_words_exps parameter_words_exps
 
 (* TODO: refactor *)
@@ -820,9 +819,6 @@ let build_enum_value_fn (name, (ty, parameterization), enumerants) =
               []
           in
           extract_words 0
-        in
-        let rec make_ls = fun n el ->
-          if n = 0 then [] else el :: make_ls (n - 1) el
         in
         match value with
           | BigInt n -> words_of_sized_big_int n

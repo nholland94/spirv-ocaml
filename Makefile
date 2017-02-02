@@ -18,14 +18,21 @@ install:
 uninstall:
 	ocamlfind remove spirv
 
+# this task replaces SpirV.ml and SpirV.mli rules to
+# allow use of the same Makefile for opam so that
+# the Generator dependencies aren't required
+generate: Generator.byte
+	./Generator.byte implem > SpirV.ml
+	./Generator.byte interf > SpirV.mli
+
 Generator.byte: Generator.ml
 	ocamlfind ocamlc -linkpkg -package dynlink -package camlp4 -package yojson -pp camlp4of -o Generator.byte str.cma camlp4fulllib.cma Generator.ml
 
-SpirV.ml: Generator.byte
-	./Generator.byte implem > SpirV.ml
-
-SpirV.mli: Generator.byte
-	./Generator.byte interf > SpirV.mli
+# SpirV.ml: Generator.byte
+# 	./Generator.byte implem > SpirV.ml
+# 
+# SpirV.mli: Generator.byte
+# 	./Generator.byte interf > SpirV.mli
 
 SpirV.cmi: SpirV.mli
 	ocamlfind ocamlc -package batteries -g -c SpirV.mli

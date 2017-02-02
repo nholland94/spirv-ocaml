@@ -981,8 +981,7 @@ let words_of_context_dependent_number (size : int) (value : big_int_or_float)
       if i < word_count
       then (extract_word i) :: (extract_words (i + 1))
       else []
-    in extract_words 0 in
-  let rec make_ls n el = if n = 0 then [] else el :: (make_ls (n - 1) el)
+    in extract_words 0
   in
     match value with
     | BigInt n -> words_of_sized_big_int n
