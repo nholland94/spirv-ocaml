@@ -6,7 +6,7 @@ A code-generated spirv compiler for ocaml.
 
 ## Status
 
-Still under development, but close to ready for the first opam publish.
+The library is ready for use and is available on [opam](https://opam.ocaml.org/packages/spirv/).
 
 Things to do:
   - add 64 bit float literal support
