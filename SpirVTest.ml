@@ -426,7 +426,7 @@ let build_binary_comparison_test (name, fn) =
   name >:: fun _ -> begin
     let op_words = compile_to_words ops in
     (* let (in_ch, out_ch) = Unix.open_process (Printf.sprintf "echo '%s'spirv-as -o - -" asm_source) in *)
-    let in_ch = Unix.open_process_in (Printf.sprintf "echo '%s' | spirv-as -o - -" asm_source) in
+    let in_ch = Unix.open_process_in (Printf.sprintf "echo '%s' | spirv-as --target-env spv1.1 -o - -" asm_source) in
     (* IO.write_string out_ch asm_source; *)
     let asm_words = read_all_with IO.read_real_i32 in_ch in
     check_status @@ Unix.close_process_in in_ch;

@@ -333,7 +333,7 @@ module Templates = struct
   let pa_app a b = PaApp (_loc, a, b)
   let ex_int n = ExInt (_loc, n)
 
-  let typedef name body = StTyp (_loc, TyDcl (_loc, name, [], body, []))
+  let typedef name body = StTyp (_loc, ReRecursive, TyDcl (_loc, name, [], body, []))
 
   (* Ast Concatenation *)
   let rec join_ast join = function
@@ -738,7 +738,10 @@ let build_enum_value_fn (name, (ty, parameterization), enumerants) =
             in
             let (flag, ops) = List.fold_left combine_split_flags (0l, []) (List.map split flags) in
             flag :: ops
-        >> module StaticElements = struct let open_definitions = [ <:str_item< open Batteries >> ]
+        >>
+
+module StaticElements = struct
+  let open_definitions = [ <:str_item< open Batteries >> ]
 
   let module_definitions = [
     <:str_item< module IdMap = Map.Make(Int32) >>
@@ -836,7 +839,7 @@ let build_enum_value_fn (name, (ty, parameterization), enumerants) =
           if i = len then
             ()
           else begin
-            buffer.(i / 4) <- add_char_to_word (String.get str i) (i mod 4) buffer.(i / 4);
+            buffer.(i / 4) <- add_char_to_word (String.get str i) (abs @@ (i mod 4) - 3) buffer.(i / 4);
             add_char_to_buffer (i + 1)
           end
         in
@@ -918,13 +921,13 @@ let pack_version (major, minor) =
   let minor_mask = shift_left (logand minor_i32 0x03l) 8 in
   logor major_mask minor_mask
 
-let st_typ x = StTyp (_loc, x)
-let sg_typ x = SgTyp (_loc, x)
+let st_typ x = StTyp (_loc, ReRecursive, x)
+let sg_typ x = SgTyp (_loc, ReRecursive, x)
 
 let join_typedefs typedefs wrapper =
   let rec cons_typedefs = function
-    | [StTyp (_, dcl)]    -> dcl
-    | StTyp (_, dcl) :: t -> TyAnd (_loc, dcl, cons_typedefs t)
+    | [StTyp (_, _, dcl)]    -> dcl
+    | StTyp (_, _, dcl) :: t -> TyAnd (_loc, dcl, cons_typedefs t)
     | []     -> failwith "cannot join_typedefs on empty list"
     | _      -> failwith "non typedef str_item in join_typedefs"
   in
@@ -975,8 +978,8 @@ let generate_implementation output info =
   List.iter output StaticElements.interfaces
 
 let cast_sig = function
-  | StTyp (loc, t)    -> SgTyp (loc, t)
-  | StOpn (loc, i)    -> SgOpn (loc, i)
+  | StTyp (loc, re, t)    -> SgTyp (loc, re, t)
+  | StOpn (loc, ov, i)    -> SgOpn (loc, ov, i)
   | StExc (loc, t, _) -> SgExc (loc, t)
   | _              -> failwith "unhandled case in cast_sig"
 

@@ -1004,7 +1004,8 @@ let words_of_string (str : string) =
     then ()
     else
       (buffer.(i / 4) <-
-         add_char_to_word (String.get str i) (i mod 4) buffer.(i / 4);
+         add_char_to_word (String.get str i) (abs @@ ((i mod 4) - 3))
+           buffer.(i / 4);
        add_char_to_buffer (i + 1))
   in (add_char_to_buffer 0; Array.to_list buffer);;
 let list_of_option (opt : 'a option) =

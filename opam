@@ -1,6 +1,6 @@
 opam-version: "1.2"
 name: "spirv"
-version: "1.1.1"
+version: "1.1.2"
 maintainer: "Nathan Holland <nholland94@gmail.com>"
 author: "Nathan Holland <nholland94@gmail.com>"
 homepage: "https://github.com/nholland94/spirv-ocaml"
@@ -9,7 +9,9 @@ license: "MIT"
 dev-repo: "https://github.com/nholland94/spirv-ocaml"
 build: [
   [make "SpirV.cmo"] {!ocaml-native}
+  [make "SpirV.cma"] {!ocaml-native}
   [make "SpirV.cmx"] {ocaml-native}
+  [make "SpirV.cmxa"] {ocaml-native}
   [make "SpirV.cmxs"] {ocaml-native}
 ]
 install: [
