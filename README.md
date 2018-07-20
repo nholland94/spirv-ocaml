@@ -26,53 +26,55 @@ Extended instructions are currently implemented through a function abstraction. 
 
 ## Example
 
-    let _ =
-      let open SpirV in
-      let copy_shader_instructions = [
-        `OpCapability CapabilityShader;
-        `OpMemoryModel (AddressingModelLogical, MemoryModelSimple);
-        `OpEntryPoint (ExecutionModelGLCompute, func, "f", [v_in; v_out; v_g_index]);
-        `OpExecutionMode (func, ExecutionModeLocalSize (1l, 1l, 1l));
+```ocaml
+let _ =
+  let open SpirV in
+  let copy_shader_instructions = [
+    `OpCapability CapabilityShader;
+    `OpMemoryModel (AddressingModelLogical, MemoryModelSimple);
+    `OpEntryPoint (ExecutionModelGLCompute, func, "f", [v_in; v_out; v_g_index]);
+    `OpExecutionMode (func, ExecutionModeLocalSize (1l, 1l, 1l));
 
-        `OpDecorate (t_struct, DecorationBufferBlock);
-        `OpDecorate (v_g_index, DecorationBuiltIn BuiltInGlobalInvocationId);
-        `OpDecorate (v_in, DecorationDescriptorSet 0l);
-        `OpDecorate (v_in, DecorationBinding 0l);
-        `OpDecorate (v_out, DecorationDescriptorSet 0l);
-        `OpDecorate (v_out, DecorationBinding 1l);
-        `OpDecorate (t_in_arr, DecorationArrayStride 4l);
-        `OpMemberDecorate (t_struct, 0l, DecorationOffset 0l);
+    `OpDecorate (t_struct, DecorationBufferBlock);
+    `OpDecorate (v_g_index, DecorationBuiltIn BuiltInGlobalInvocationId);
+    `OpDecorate (v_in, DecorationDescriptorSet 0l);
+    `OpDecorate (v_in, DecorationBinding 0l);
+    `OpDecorate (v_out, DecorationDescriptorSet 0l);
+    `OpDecorate (v_out, DecorationBinding 1l);
+    `OpDecorate (t_in_arr, DecorationArrayStride 4l);
+    `OpMemberDecorate (t_struct, 0l, DecorationOffset 0l);
 
-        `OpTypeVoid t_void;
-        `OpTypeFunction (t_func, t_void, []);
-        `OpTypeInt (t_int, 32l, 1l);
+    `OpTypeVoid t_void;
+    `OpTypeFunction (t_func, t_void, []);
+    `OpTypeInt (t_int, 32l, 1l);
 
-        `OpConstant (t_int, c_zero, BigInt (Big_int.big_int_of_int 0));
-        `OpConstant (t_int, c_in_sz, BigInt (Big_int.big_int_of_int 2048));
+    `OpConstant (t_int, c_zero, BigInt (Big_int.big_int_of_int 0));
+    `OpConstant (t_int, c_in_sz, BigInt (Big_int.big_int_of_int 2048));
 
-        `OpTypeArray (t_in_arr, t_int, c_in_sz);
-        `OpTypeStruct (t_struct, [t_in_arr]);
-        `OpTypeVector (t_vec, t_int, 3l);
-        `OpTypePointer (t_u_struct_p, StorageClassUniform, t_struct);
-        `OpTypePointer (t_u_int_p, StorageClassUniform, t_int);
-        `OpTypePointer (t_in_vec_p, StorageClassInput, t_vec);
-        `OpTypePointer (t_in_int_p, StorageClassInput, t_int);
+    `OpTypeArray (t_in_arr, t_int, c_in_sz);
+    `OpTypeStruct (t_struct, [t_in_arr]);
+    `OpTypeVector (t_vec, t_int, 3l);
+    `OpTypePointer (t_u_struct_p, StorageClassUniform, t_struct);
+    `OpTypePointer (t_u_int_p, StorageClassUniform, t_int);
+    `OpTypePointer (t_in_vec_p, StorageClassInput, t_vec);
+    `OpTypePointer (t_in_int_p, StorageClassInput, t_int);
 
-        `OpVariable (t_u_struct_p, v_in, StorageClassUniform, None);
-        `OpVariable (t_u_struct_p, v_out, StorageClassUniform, None);
-        `OpVariable (t_u_struct_p, v_g_index, StorageClassInput, None);
+    `OpVariable (t_u_struct_p, v_in, StorageClassUniform, None);
+    `OpVariable (t_u_struct_p, v_out, StorageClassUniform, None);
+    `OpVariable (t_u_struct_p, v_g_index, StorageClassInput, None);
 
-        `OpFunction (t_void, func, [FunctionControlNone], t_func);
-        `OpLabel label;
-        `OpAccessChain (t_in_int_p, g_index_p, v_g_index, [c_zero]);
-        `OpLoad (t_int, g_index, g_index_p, None);
-        `OpAccessChain (t_u_int_p, in_p, v_in, [c_zero; g_index]);
-        `OpAccessChain (t_u_int_p, out_p, v_out, [c_zero; g_index]);
-        `OpLoad (t_int, input, in_p, None);
-        `OpStore (out_p, input, None);
-        `OpReturn;
-        `OpFunctionEnd
-      ] in
+    `OpFunction (t_void, func, [FunctionControlNone], t_func);
+    `OpLabel label;
+    `OpAccessChain (t_in_int_p, g_index_p, v_g_index, [c_zero]);
+    `OpLoad (t_int, g_index, g_index_p, None);
+    `OpAccessChain (t_u_int_p, in_p, v_in, [c_zero; g_index]);
+    `OpAccessChain (t_u_int_p, out_p, v_out, [c_zero; g_index]);
+    `OpLoad (t_int, input, in_p, None);
+    `OpStore (out_p, input, None);
+    `OpReturn;
+    `OpFunctionEnd
+  ] in
 
-      let copy_shader = compile_to_words copy_shader_instructions in
-      ... (* do some work with compiled shader module *)
+  let copy_shader = compile_to_words copy_shader_instructions in
+  ... (* do some work with compiled shader module *)
+```
